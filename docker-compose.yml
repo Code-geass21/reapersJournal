@@ -29,7 +29,6 @@ services:
     volumes:
       - uploads:/app/uploads
       - backups:/app/backups
-      - ./db/migrations:/app/db/migrations
     expose:
       - "8000"
 
