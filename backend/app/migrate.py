@@ -31,11 +31,18 @@ def run_migrations():
 
         for file in files:
             if file not in applied:
-                logger.info(f"Applying migration: {file}")
                 filepath = os.path.join(MIGRATIONS_DIR, file)
                 with open(filepath, "r") as f:
-                    sql = f.read()
+                    # .strip() removes whitespace/newlines.
+                    sql = f.read().strip()
 
+                # --- NEW LOGIC: Skip empty files ---
+                if not sql:
+                    logger.info(f"Skipping {file} (file is empty)")
+                    continue
+                # -----------------------------------
+
+                logger.info(f"Applying migration: {file}")
                 try:
                     conn.execute(text(sql))
                     conn.execute(
