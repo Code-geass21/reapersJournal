@@ -11,12 +11,10 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 
 @router.post("/register", response_model=UserOut)
 def register(user_in: UserCreate, db: Session = Depends(get_db)):
-    # Check if user exists
     if db.query(User).filter(User.username == user_in.username).first() or \
        db.query(User).filter(User.email == user_in.email).first():
         raise HTTPException(status_code=400, detail="Username or email already registered")
 
-    # First user gets admin role
     is_first_user = db.query(User).count() == 0
     role = "admin" if is_first_user else "user"
 
