@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16
+    container_name: rj_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: ${TZ}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    expose:
+      - "5432"
+
+  backend:
+    build:
+      context: ./backend
+    container_name: rj_backend
+    restart: always
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      TZ: ${TZ}
+    volumes:
+      - uploads:/app/uploads
+      - backups:/app/backups
+    expose:
+      - "8000"
+
+  worker:
+    build:
+      context: ./backend
+    container_name: rj_worker
+    restart: always
+    # Shares the same Python code as backend, runs a different entry point
+    command: ["python", "-m", "app.worker"]
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      PRICE_REFRESH_SECS: ${PRICE_REFRESH_SECS}
+      TZ: ${TZ}
+    volumes:
+      - backups:/app/backups
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: rj_frontend
+    restart: always
+    environment:
+      TZ: ${TZ}
+    # In production, this might just build static files,
+    # but as a distinct service, we'll run Vite's preview or dev server
+    expose:
+      - "5173"
+
+  nginx:
+    build:
+      context: ./nginx
+    container_name: rj_nginx
+    restart: always
+    ports:
+      # Binds to LAN via the port specified in .env, defaulting to 54311
+      - "${PUBLIC_PORT:-54311}:80"
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  pgdata:
+  uploads:
+  backups:
