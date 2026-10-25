@@ -1,10 +1,11 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 
 class UserCreate(BaseModel):
     username: str
     email: EmailStr
-    password: str
+    # Enforce bcrypt's 72-byte limit before it hits the hashing utility
+    password: str = Field(..., max_length=72)
 
 class UserOut(BaseModel):
     id: int
