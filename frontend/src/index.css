@@ -1,0 +1,10 @@
+body {
+    margin: 0;
+    background-color: #0f172a; /* Navy dark background */
+    color: #22d3ee; /* Aqua-blue accent */
+    font-family: system-ui, -apple-system, sans-serif;
+}
+
+.container {
+    padding: 2rem;
+}
