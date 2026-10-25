@@ -2,12 +2,15 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Copy requirements and install them first (for better caching)
-COPY requirements.txt .
+# Copy requirements from the backend folder
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the backend code (including the 'app' folder)
-COPY . .
+# Copy the backend python code
+COPY backend/app ./app
 
-# Default command for the backend service (worker overrides this in compose)
+# Copy the database migrations from the db folder into the image
+COPY db/migrations ./db/migrations
+
+# Default command
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

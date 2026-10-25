@@ -17,7 +17,8 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: .
+      dockerfile: ./backend/Dockerfile
     container_name: rj_backend
     restart: always
     depends_on:
@@ -34,7 +35,8 @@ services:
 
   worker:
     build:
-      context: ./backend
+      context: .
+      dockerfile: ./backend/Dockerfile
     container_name: rj_worker
     restart: always
     # Shares the same Python code as backend, runs a different entry point
