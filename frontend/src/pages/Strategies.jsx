@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../utils/api';
 
 export default function Strategies() {
@@ -140,7 +141,12 @@ export default function Strategies() {
             <div style={{ display: 'grid', gap: '1rem' }}>
             {strategies.map(s => (
                 <div key={s.id} style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '8px', borderLeft: '4px solid #22d3ee' }}>
-                <h3 style={{ margin: '0 0 0.5rem 0' }}>{s.name}</h3>
+                {/* Make the name clickable */}
+                <h3 style={{ margin: '0 0 0.5rem 0' }}>
+                <Link to={`/strategies/${s.id}`} style={{ color: '#f8fafc', textDecoration: 'none' }}>
+                {s.name} →
+                </Link>
+                </h3>
                 {s.description && <p style={{ margin: '0 0 1rem 0', color: '#cbd5e1' }}>{s.description}</p>}
                 <div style={{ display: 'flex', gap: '1rem', fontSize: '0.875rem', color: '#94a3b8' }}>
                 <span><strong>Market:</strong> {s.market}</span>
