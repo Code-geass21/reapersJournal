@@ -4,6 +4,7 @@ import Login from './pages/Login'
 import Strategies from './pages/Strategies';
 import StrategyDetail from './pages/StrategyDetail';
 import Journal from './pages/Journal'; // <-- Import
+import TradeDetail from './pages/TradeDetail';
 
 function App() {
     const { token, logout } = useAuth();
@@ -32,6 +33,7 @@ function App() {
         <Route path="/journal" element={<Journal />} /> {/* <-- Add Route */}
         <Route path="/strategies" element={<Strategies />} />
         <Route path="/strategies/:id" element={<StrategyDetail />} />
+        <Route path="/journal/:id" element={<TradeDetail />} />
         </Routes>
         </main>
         </div>
