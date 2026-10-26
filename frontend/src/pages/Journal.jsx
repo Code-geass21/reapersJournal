@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../utils/api';
+import { Link } from 'react-router-dom'; // <-- Add this
+
 
 export default function Journal() {
     const [trades, setTrades] = useState([]);
@@ -172,11 +174,14 @@ export default function Journal() {
                     <div key={trade.id} style={{ background: '#1e293b', padding: '1.25rem', borderRadius: '8px', borderLeft: `4px solid ${isLong ? '#22c55e' : '#ef4444'}` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
                     <div>
+                    // Replace this block inside Journal.jsx:
                     <h3 style={{ margin: '0 0 0.25rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    {inst?.symbol || 'Unknown'}
-                    <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '4px', background: isLong ? '#22c55e20' : '#ef444420', color: isLong ? '#22c55e' : '#ef4444', textTransform: 'uppercase' }}>
-                    {trade.direction}
-                    </span>
+                        <Link to={`/journal/${trade.id}`} style={{ color: '#22d3ee', textDecoration: 'none' }}>
+                            {inst?.symbol || 'Unknown'} →
+                        </Link>
+                        <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '4px', background: isLong ? '#22c55e20' : '#ef444420', color: isLong ? '#22c55e' : '#ef4444', textTransform: 'uppercase' }}>
+                            {trade.direction}
+                        </span>
                     </h3>
                     <div style={{ fontSize: '0.875rem', color: '#94a3b8' }}>{strat?.name || 'Unknown Strategy'} • Opened: {new Date(trade.opened_at).toLocaleString()}</div>
                     </div>
