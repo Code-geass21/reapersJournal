@@ -40,3 +40,20 @@ class StrategyOut(StrategyBase):
 
     class Config:
         from_attributes = True
+
+# --- Strategy Deposit Schemas ---
+class StrategyDepositBase(BaseModel):
+    amount: float
+    kind: str  # 'deposit' or 'withdrawal'
+    date: date
+    note: Optional[str] = None
+
+class StrategyDepositCreate(StrategyDepositBase):
+    pass
+
+class StrategyDepositOut(StrategyDepositBase):
+    id: int
+    strategy_id: int
+
+    class Config:
+        from_attributes = True
