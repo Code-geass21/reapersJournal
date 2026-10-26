@@ -19,8 +19,12 @@ class Strategy(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+    # Relationships
     rules = relationship("StrategyRule", back_populates="strategy", cascade="all, delete-orphan")
     deposits = relationship("StrategyDeposit", back_populates="strategy", cascade="all, delete-orphan")
+
+    # Use the string "Trade" for late-binding.
+    # The actual class 'Trade' is defined in app.models.trade
     trades = relationship("Trade", back_populates="strategy")
 
 class StrategyRule(Base):
