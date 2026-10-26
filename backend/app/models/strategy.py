@@ -21,6 +21,7 @@ class Strategy(Base):
 
     rules = relationship("StrategyRule", back_populates="strategy", cascade="all, delete-orphan")
     deposits = relationship("StrategyDeposit", back_populates="strategy", cascade="all, delete-orphan")
+    trades = relationship("Trade", back_populates="strategy")
 
 class StrategyRule(Base):
     __tablename__ = "strategy_rules"
