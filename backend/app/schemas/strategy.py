@@ -1,7 +1,26 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any
 from datetime import date
 
+# --- Strategy Rule Schemas ---
+class StrategyRuleBase(BaseModel):
+    rule_type: str # 'entry', 'exit', 'risk', 'filter'
+    label: str
+    params: Dict[str, Any] = Field(default_factory=dict)
+    is_required: bool = True
+    sort_order: int = 0
+
+class StrategyRuleCreate(StrategyRuleBase):
+    pass
+
+class StrategyRuleOut(StrategyRuleBase):
+    id: int
+    strategy_id: int
+
+    class Config:
+        from_attributes = True
+
+# --- Existing Strategy Schemas ---
 class StrategyBase(BaseModel):
     name: str
     description: Optional[str] = None
