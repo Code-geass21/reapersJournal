@@ -174,7 +174,6 @@ export default function Journal() {
                     <div key={trade.id} style={{ background: '#1e293b', padding: '1.25rem', borderRadius: '8px', borderLeft: `4px solid ${isLong ? '#22c55e' : '#ef4444'}` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
                     <div>
-                    // Replace this block inside Journal.jsx:
                     <h3 style={{ margin: '0 0 0.25rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <Link to={`/journal/${trade.id}`} style={{ color: '#22d3ee', textDecoration: 'none' }}>
                             {inst?.symbol || 'Unknown'} →
