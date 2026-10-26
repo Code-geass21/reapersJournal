@@ -35,7 +35,10 @@ class Trade(Base):
 
     # Relationships
     instrument = relationship("Instrument", back_populates="trades")
-    # Link back to strategy (you will need to add `trades = relationship("Trade", back_populates="strategy")` to Strategy model later)
+
+    # <-- FIX: Add the relationship back to Strategy -->
+    strategy = relationship("Strategy", back_populates="trades")
+
     condition_checks = relationship("TradeConditionCheck", back_populates="trade", cascade="all, delete-orphan")
 
 class TradeConditionCheck(Base):
