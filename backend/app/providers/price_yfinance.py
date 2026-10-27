@@ -1,10 +1,17 @@
 import logging
 import math
 from typing import Dict, Any
+import requests
 
 import yfinance as yf
 
 logger = logging.getLogger(__name__)
+
+# 1. Create a custom session to spoof a real web browser
+session = requests.Session()
+session.headers.update({
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+})
 
 def _valid_price(value: Any) -> float | None:
     """Convert a candidate price to a finite float."""
@@ -38,7 +45,8 @@ def fetch_prices(symbols: list[str]) -> Dict[str, dict]:
 
     for symbol in unique_symbols:
         try:
-            ticker = yf.Ticker(symbol)
+            # 2. Pass the custom session into the yfinance Ticker!
+            ticker = yf.Ticker(symbol, session=session)
             current_price = None
 
             # Attempt 1: Yahoo Finance fast_info.
