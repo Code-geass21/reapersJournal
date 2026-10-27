@@ -15,4 +15,4 @@ def get_db():
 
 # Import all models here to ensure they are registered with SQLAlchemy's metadata
 # BEFORE any queries are made. This resolves "failed to locate a name" circular dependency errors.
-from app.models import user, strategy, instrument, trade
+from app.models import user, strategy, instrument, trade, attachment

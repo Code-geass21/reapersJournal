@@ -1,6 +1,8 @@
 # Custom Project Files
 reapersJournal_architecture.md
 PLAN.md
+dump.py
+project_dump.txt
 
 # Python / FastAPI (Backend)
 __pycache__/
