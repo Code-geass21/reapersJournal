@@ -1,52 +1,104 @@
-import yfinance as yf
-from typing import Dict
 import logging
+import math
+from typing import Dict, Any
+
+import yfinance as yf
 
 logger = logging.getLogger(__name__)
 
+def _valid_price(value: Any) -> float | None:
+    """Convert a candidate price to a finite float."""
+    if value is None:
+        return None
+
+    try:
+        price = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+    if not math.isfinite(price) or price <= 0:
+        return None
+
+    return price
+
 def fetch_prices(symbols: list[str]) -> Dict[str, dict]:
     """
-    Fetches current spot prices for a list of provider_symbols.
-    Returns a dictionary mapping provider_symbol to price data.
+    Fetch prices for Yahoo Finance symbols.
+
+    Returns:
+        A mapping of symbol to price data for successful lookups.
+        Symbols with unavailable prices are omitted.
     """
-    if not symbols:
-        return {}
+    result: Dict[str, dict] = {}
 
-    result = {}
-    unique_symbols = list(set(symbols))
-
-    # Initialize the batch yfinance Tickers object
-    tickers = yf.Tickers(" ".join(unique_symbols))
+    # Remove duplicates while preserving input order.
+    unique_symbols = list(dict.fromkeys(
+        symbol.strip() for symbol in symbols if symbol.strip()
+    ))
 
     for symbol in unique_symbols:
         try:
-            ticker = tickers.tickers[symbol]
+            ticker = yf.Ticker(symbol)
             current_price = None
 
-            # Attempt 1: Try fast_info (fastest, but sometimes brittle)
+            # Attempt 1: Yahoo Finance fast_info.
             try:
-                current_price = ticker.fast_info.last_price
-            except Exception as fast_info_error:
-                logger.debug(f"fast_info failed for {symbol}: {fast_info_error}")
+                current_price = _valid_price(
+                    ticker.fast_info.last_price
+                )
+            except Exception as exc:
+                logger.debug(
+                    "fast_info failed for %s: %s",
+                    symbol,
+                    exc,
+                )
 
-            # Attempt 2: Fallback to history (slower, but more reliable)
+            # Attempt 2: Recent daily history.
             if current_price is None:
-                history = ticker.history(period="1d")
-                if not history.empty:
-                    # Get the most recent closing price
-                    current_price = history['Close'].iloc[-1]
+                try:
+                    history = ticker.history(
+                        period="5d",
+                        interval="1d",
+                    )
 
-            if current_price:
-                result[symbol] = {
-                    "price": float(current_price),
-                    "bid": None, # Unreliable on free-tier off-hours feeds
-                    "ask": None,
-                    "source": "yfinance"
-                }
-            else:
-                logger.warning(f"Could not retrieve price data for {symbol} via any method.")
+                    if not history.empty and "Close" in history.columns:
+                        current_price = _valid_price(
+                            history["Close"].dropna().iloc[-1]
+                            if not history["Close"].dropna().empty
+                            else None
+                        )
 
-        except Exception as e:
-            logger.error(f"[yfinance Provider] Failed to fetch price for {symbol}: {e}")
+                except Exception as exc:
+                    logger.warning(
+                        "History lookup failed for %s: %s",
+                        symbol,
+                        exc,
+                    )
+
+            if current_price is None:
+                logger.warning(
+                    "No valid price available for %s",
+                    symbol,
+                )
+                continue
+
+            result[symbol] = {
+                "price": current_price,
+                "bid": None,
+                "ask": None,
+                "source": "yfinance",
+            }
+
+            logger.info(
+                "Retrieved price for %s: %s",
+                symbol,
+                current_price,
+            )
+
+        except Exception:
+            logger.exception(
+                "Unexpected error fetching price for %s",
+                symbol,
+            )
 
     return result
