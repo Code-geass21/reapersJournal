@@ -1,5 +1,8 @@
 import yfinance as yf
 from typing import Dict
+import logging
+
+logger = logging.getLogger(__name__)
 
 def fetch_prices(symbols: list[str]) -> Dict[str, dict]:
     """
@@ -18,8 +21,20 @@ def fetch_prices(symbols: list[str]) -> Dict[str, dict]:
     for symbol in unique_symbols:
         try:
             ticker = tickers.tickers[symbol]
-            # .fast_info is a lightweight dict-like object for real-time spot prices
-            current_price = ticker.fast_info.last_price
+            current_price = None
+
+            # Attempt 1: Try fast_info (fastest, but sometimes brittle)
+            try:
+                current_price = ticker.fast_info.last_price
+            except Exception as fast_info_error:
+                logger.debug(f"fast_info failed for {symbol}: {fast_info_error}")
+
+            # Attempt 2: Fallback to history (slower, but more reliable)
+            if current_price is None:
+                history = ticker.history(period="1d")
+                if not history.empty:
+                    # Get the most recent closing price
+                    current_price = history['Close'].iloc[-1]
 
             if current_price:
                 result[symbol] = {
@@ -28,7 +43,10 @@ def fetch_prices(symbols: list[str]) -> Dict[str, dict]:
                     "ask": None,
                     "source": "yfinance"
                 }
+            else:
+                logger.warning(f"Could not retrieve price data for {symbol} via any method.")
+
         except Exception as e:
-            print(f"[yfinance Provider] Failed to fetch price for {symbol}: {e}")
+            logger.error(f"[yfinance Provider] Failed to fetch price for {symbol}: {e}")
 
     return result
