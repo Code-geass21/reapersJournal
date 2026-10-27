@@ -268,7 +268,7 @@ export default function TradeDetail() {
         )}
         </div>
 
-        {/* <-- NEW: Screenshots Section --> */}
+        {/* <-- FIX: Authenticated Screenshots Section --> */}
         <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <h3 style={{ margin: 0 }}>Screenshots</h3>
@@ -294,29 +294,70 @@ export default function TradeDetail() {
         ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
             {attachments.map(att => (
-                <div key={att.id} style={{ position: 'relative', background: '#1e293b', padding: '0.5rem', borderRadius: '8px' }}>
-                <img
-                src={`/api/attachments/${att.id}/file`}
-                alt="Trade setup"
-                style={{ width: '100%', height: 'auto', borderRadius: '4px', display: 'block' }}
+                <AuthImage
+                key={att.id}
+                attachmentId={att.id}
+                onDelete={() => handleDeleteAttachment(att.id)}
                 />
-                <button
-                onClick={() => handleDeleteAttachment(att.id)}
-                style={{
-                    position: 'absolute', top: '10px', right: '10px',
-                    background: 'rgba(0,0,0,0.7)', color: '#ef4444',
-                                     border: 'none', borderRadius: '50%', width: '28px', height: '28px',
-                                     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }}
-                >
-                ×
-                </button>
-                </div>
             ))}
             </div>
         )}
         </div>
+        </div>
+    );
+}
 
+// Dedicated component to fetch images with the JWT token
+function AuthImage({ attachmentId, onDelete }) {
+    const [imgSrc, setImgSrc] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchImage = async () => {
+            try {
+                // Request the file as a Blob (binary data)
+                const response = await api.get(`/attachments/${attachmentId}/file`, {
+                    responseType: 'blob'
+                });
+                // Create a local URL pointing to this blob
+                const url = URL.createObjectURL(response.data);
+                setImgSrc(url);
+            } catch (error) {
+                console.error("Failed to load image", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchImage();
+
+        // Cleanup the object URL to avoid memory leaks when unmounted
+        return () => {
+            if (imgSrc) URL.revokeObjectURL(imgSrc);
+        };
+    }, [attachmentId]);
+
+    if (loading) return <div style={{ background: '#334155', padding: '2rem', textAlign: 'center', borderRadius: '8px' }}>Loading...</div>;
+    if (!imgSrc) return <div style={{ background: '#334155', padding: '2rem', textAlign: 'center', borderRadius: '8px', color: '#ef4444' }}>Error</div>;
+
+    return (
+        <div style={{ position: 'relative', background: '#1e293b', padding: '0.5rem', borderRadius: '8px' }}>
+        <img
+        src={imgSrc}
+        alt="Trade setup"
+        style={{ width: '100%', height: 'auto', borderRadius: '4px', display: 'block' }}
+        onClick={() => window.open(imgSrc, '_blank')} // Click to open full size
+        />
+        <button
+        onClick={onDelete}
+        style={{
+            position: 'absolute', top: '10px', right: '10px',
+            background: 'rgba(0,0,0,0.7)', color: '#ef4444',
+            border: 'none', borderRadius: '50%', width: '28px', height: '28px',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}
+        >
+        ×
+        </button>
         </div>
     );
 }
