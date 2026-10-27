@@ -8,6 +8,7 @@ export default function TradeDetail() {
     const [strategy, setStrategy] = useState(null);
     const [instrument, setInstrument] = useState(null);
     const [rules, setRules] = useState([]);
+    const [attachments, setAttachments] = useState([]); // <-- NEW: State for attachments
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -19,6 +20,9 @@ export default function TradeDetail() {
     const [isEditingNotes, setIsEditingNotes] = useState(false);
     const [notesText, setNotesText] = useState('');
 
+    // Upload State
+    const [uploading, setUploading] = useState(false);
+
     const fetchData = async () => {
         try {
             const tradeRes = await api.get(`/trades/${id}`);
@@ -26,15 +30,17 @@ export default function TradeDetail() {
             setTrade(t);
             setNotesText(t.notes || '');
 
-            const [stratRes, instRes, rulesRes] = await Promise.all([
+            const [stratRes, instRes, rulesRes, attachRes] = await Promise.all([
                 api.get(`/strategies/`),
-                                                                    api.get(`/instruments/`),
-                                                                    api.get(`/strategies/${t.strategy_id}/rules`)
+                                                                               api.get(`/instruments/`),
+                                                                               api.get(`/strategies/${t.strategy_id}/rules`),
+                                                                               api.get(`/attachments/trade/${id}`) // <-- NEW: Fetch attachments
             ]);
 
             setStrategy(stratRes.data.find(s => s.id === t.strategy_id));
             setInstrument(instRes.data.find(i => i.id === t.instrument_id));
             setRules(rulesRes.data);
+            setAttachments(attachRes.data); // <-- NEW: Set attachments
 
         } catch (err) {
             setError('Failed to load trade details.');
@@ -68,6 +74,43 @@ export default function TradeDetail() {
             fetchData();
         } catch (err) {
             alert('Failed to save notes');
+        }
+    };
+
+    // <-- NEW: Handle File Upload
+    const handleFileUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setUploading(true);
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('owner_type', 'trade');
+        formData.append('owner_id', id);
+
+        try {
+            await api.post('/attachments/', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+            fetchData();
+        } catch (err) {
+            alert(err.response?.data?.detail || 'Upload failed');
+        } finally {
+            setUploading(false);
+            e.target.value = ''; // Reset input
+        }
+    };
+
+    // <-- NEW: Handle File Deletion
+    const handleDeleteAttachment = async (attachmentId) => {
+        if (!window.confirm("Delete this screenshot?")) return;
+        try {
+            await api.delete(`/attachments/${attachmentId}`);
+            fetchData();
+        } catch (err) {
+            alert('Failed to delete attachment');
         }
     };
 
@@ -166,7 +209,7 @@ export default function TradeDetail() {
             </div>
         )}
 
-        {/* Rule Checklist (Phase 3 Core Feature) */}
+        {/* Rule Checklist */}
         <div style={{ marginBottom: '2rem' }}>
         <h3 style={{ margin: '0 0 1rem 0' }}>Strategy Checklist</h3>
         {rules.length === 0 ? (
@@ -196,7 +239,7 @@ export default function TradeDetail() {
         </div>
 
         {/* Notes Section */}
-        <div>
+        <div style={{ marginBottom: '2rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <h3 style={{ margin: 0 }}>Trade Notes</h3>
         {!isEditingNotes && (
@@ -221,6 +264,55 @@ export default function TradeDetail() {
         ) : (
             <div style={{ padding: '1.5rem', background: '#1e293b', borderRadius: '8px', minHeight: '100px', whiteSpace: 'pre-wrap', color: trade.notes ? '#f8fafc' : '#94a3b8' }}>
             {trade.notes || "No notes recorded for this trade."}
+            </div>
+        )}
+        </div>
+
+        {/* <-- NEW: Screenshots Section --> */}
+        <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <h3 style={{ margin: 0 }}>Screenshots</h3>
+        <div>
+        <label style={{
+            background: '#334155', color: '#f8fafc', padding: '0.5rem 1rem',
+            border: 'none', cursor: 'pointer', borderRadius: '4px', display: 'inline-block'
+        }}>
+        {uploading ? 'Uploading...' : '+ Add Image'}
+        <input
+        type="file"
+        accept="image/*"
+        onChange={handleFileUpload}
+        style={{ display: 'none' }}
+        disabled={uploading}
+        />
+        </label>
+        </div>
+        </div>
+
+        {attachments.length === 0 ? (
+            <p style={{ color: '#94a3b8' }}>No screenshots attached.</p>
+        ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
+            {attachments.map(att => (
+                <div key={att.id} style={{ position: 'relative', background: '#1e293b', padding: '0.5rem', borderRadius: '8px' }}>
+                <img
+                src={`/api/attachments/${att.id}/file`}
+                alt="Trade setup"
+                style={{ width: '100%', height: 'auto', borderRadius: '4px', display: 'block' }}
+                />
+                <button
+                onClick={() => handleDeleteAttachment(att.id)}
+                style={{
+                    position: 'absolute', top: '10px', right: '10px',
+                    background: 'rgba(0,0,0,0.7)', color: '#ef4444',
+                                     border: 'none', borderRadius: '50%', width: '28px', height: '28px',
+                                     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}
+                >
+                ×
+                </button>
+                </div>
+            ))}
             </div>
         )}
         </div>
