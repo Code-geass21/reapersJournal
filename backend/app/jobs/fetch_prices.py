@@ -6,7 +6,7 @@ from app.database import SessionLocal
 from app.models.trade import Trade
 from app.models.instrument import Instrument
 from app.models.price import PriceCache
-from app.providers import price_alphavantage  # <-- Changed this import
+from app.providers import price_twelvedata
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +29,8 @@ def run():
             logger.info("No open trades found. Skipping price fetch.")
             return
 
-        logger.info(f"Fetching prices for {len(symbols)} symbols using Alpha Vantage...")
-        price_data = price_alphavantage.fetch_prices(symbols)  # <-- Changed this call
+        logger.info(f"Fetching prices for {len(symbols)} symbols using TwelveData...")
+        price_data = price_twelvedata.fetch_prices(symbols)
 
         if not price_data:
             logger.warning("Provider returned no price data.")
