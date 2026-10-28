@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../utils/api';
+import LivePriceBadge from '../components/LivePriceBadge';
+import { useLivePrices } from '../hooks/useLivePrices';
 
 export default function TradeDetail() {
     const { id } = useParams();
@@ -11,6 +13,8 @@ export default function TradeDetail() {
     const [attachments, setAttachments] = useState([]); // <-- NEW: State for attachments
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const { liveData } = useLivePrices(30);
+    const tradeLiveData = liveData[id];
 
     // Trade Closure State
     const [isClosing, setIsClosing] = useState(false);
@@ -137,6 +141,12 @@ export default function TradeDetail() {
         <span style={{ fontSize: '0.875rem', padding: '0.2rem 0.5rem', borderRadius: '4px', background: trade.status === 'open' ? '#eab30820' : '#334155', color: trade.status === 'open' ? '#eab308' : '#f8fafc', textTransform: 'uppercase' }}>
         {trade.status}
         </span>
+
+        {/* ADD THE BADGE HERE */}
+        {trade.status === 'open' && (
+            <LivePriceBadge liveData={tradeLiveData} isLong={isLong} />
+        )}
+
         </h2>
         <div style={{ color: '#94a3b8' }}>{strategy?.name} • Opened: {new Date(trade.opened_at).toLocaleString()}</div>
         </div>
