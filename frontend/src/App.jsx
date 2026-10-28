@@ -4,7 +4,8 @@ import Login from './pages/Login'
 import Strategies from './pages/Strategies';
 import StrategyDetail from './pages/StrategyDetail';
 import Journal from './pages/Journal';
-import TradeDetail from './pages/TradeDetail'; // <-- 1. Import this
+import TradeDetail from './pages/TradeDetail';
+import Dashboard from './pages/Dashboard';
 
 function App() {
     const { token, logout } = useAuth();
@@ -29,7 +30,7 @@ function App() {
 
         <main>
         <Routes>
-        <Route path="/" element={<div style={{ padding: '2rem' }}><h2>Dashboard Placeholder</h2></div>} />
+        <Route path="/" element={<Dashboard />} />
         <Route path="/journal" element={<Journal />} />
         <Route path="/journal/:id" element={<TradeDetail />} /> {/* <-- 2. Add this route */}
         <Route path="/strategies" element={<Strategies />} />
