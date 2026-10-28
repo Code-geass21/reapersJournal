@@ -6,6 +6,7 @@ import StrategyDetail from './pages/StrategyDetail';
 import Journal from './pages/Journal';
 import TradeDetail from './pages/TradeDetail';
 import Dashboard from './pages/Dashboard';
+import Settings from './pages/Settings';
 
 function App() {
     const { token, logout } = useAuth();
@@ -22,6 +23,7 @@ function App() {
         <Link to="/" style={{ color: '#f8fafc', textDecoration: 'none' }}>Dashboard</Link>
         <Link to="/journal" style={{ color: '#f8fafc', textDecoration: 'none' }}>Journal</Link>
         <Link to="/strategies" style={{ color: '#f8fafc', textDecoration: 'none' }}>Strategies</Link>
+        <Link to="/settings" style={{ color: '#f8fafc', textDecoration: 'none' }}>Settings</Link>
         </div>
         <button onClick={logout} style={{ background: 'none', color: '#94a3b8', border: '1px solid #94a3b8', padding: '0.25rem 1rem', cursor: 'pointer', borderRadius: '4px' }}>
         Logout
@@ -32,9 +34,10 @@ function App() {
         <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/journal" element={<Journal />} />
-        <Route path="/journal/:id" element={<TradeDetail />} /> {/* <-- 2. Add this route */}
+        <Route path="/journal/:id" element={<TradeDetail />} />
         <Route path="/strategies" element={<Strategies />} />
         <Route path="/strategies/:id" element={<StrategyDetail />} />
+        <Route path="/settings" element={<Settings />} />
         </Routes>
         </main>
         </div>

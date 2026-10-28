@@ -6,9 +6,12 @@ class InstrumentBase(BaseModel):
     provider_symbol: str
     market_code: str
     pip_size: float
-    contract_size: int
+    contract_size: int = 100000
     quote_ccy: str
     is_active: bool = True
+
+class InstrumentCreate(InstrumentBase):
+    pass
 
 class InstrumentOut(InstrumentBase):
     id: int
