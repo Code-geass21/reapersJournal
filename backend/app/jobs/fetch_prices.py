@@ -6,7 +6,7 @@ from app.database import SessionLocal
 from app.models.trade import Trade
 from app.models.instrument import Instrument
 from app.models.price import PriceCache
-from app.providers import price_yfinance
+from app.providers import price_alphavantage  # <-- Changed this import
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,6 @@ def run():
     """
     db: Session = SessionLocal()
     try:
-        # 1. Get unique provider symbols for ALL currently open trades across all users
         open_symbols_query = (
             db.query(Instrument.provider_symbol)
             .join(Trade, Trade.instrument_id == Instrument.id)
@@ -30,15 +29,13 @@ def run():
             logger.info("No open trades found. Skipping price fetch.")
             return
 
-        # 2. Fetch prices from the provider
-        logger.info(f"Fetching prices for {len(symbols)} symbols...")
-        price_data = price_yfinance.fetch_prices(symbols)
+        logger.info(f"Fetching prices for {len(symbols)} symbols using Alpha Vantage...")
+        price_data = price_alphavantage.fetch_prices(symbols)  # <-- Changed this call
 
         if not price_data:
             logger.warning("Provider returned no price data.")
             return
 
-        # 3. Upsert into price_cache
         upsert_count = 0
         for symbol, data in price_data.items():
             stmt = insert(PriceCache).values(
@@ -48,7 +45,6 @@ def run():
                 ask=data.get('ask'),
                 source=data['source']
             )
-            # On conflict (symbol already exists), update the prices and timestamp
             stmt = stmt.on_conflict_do_update(
                 index_elements=['provider_symbol'],
                 set_={
