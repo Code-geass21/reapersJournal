@@ -6,6 +6,7 @@ from app.api.deps import get_current_user
 from app.models.user import User
 from app.schemas.dashboard import PerformanceStatsOut
 from app.services import performance_service
+from app.providers import news_forexfactory
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -25,3 +26,9 @@ def get_performance(
 
     stats = performance_service.get_performance_stats(db, current_user.id, strat_ids)
     return stats
+
+@router.get("/news")
+def get_dashboard_news():
+    """Returns the top 5 upcoming high/medium impact economic events."""
+    news = news_forexfactory.fetch_upcoming_news()
+    return {"events": news}
