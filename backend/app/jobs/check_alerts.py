@@ -57,5 +57,6 @@ def run():
     except Exception as e:
         db.rollback()
         logger.error(f"Error running check_alerts job: {e}")
+        raise e
     finally:
         db.close()

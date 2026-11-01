@@ -59,5 +59,6 @@ def run():
     except Exception as e:
         db.rollback()
         logger.error(f"Error running fetch_news job: {e}")
+        raise e
     finally:
         db.close()

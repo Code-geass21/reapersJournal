@@ -56,5 +56,6 @@ def run():
 
     except Exception as e:
         logger.error(f"Failed to generate automated backup: {e}")
+        raise e
     finally:
         db.close()

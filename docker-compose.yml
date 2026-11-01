@@ -14,6 +14,12 @@ services:
       - pgdata:/var/lib/postgresql/data
     expose:
       - "5432"
+    # ADD THIS BLOCK:
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   backend:
     build:
@@ -22,7 +28,8 @@ services:
     container_name: rj_backend
     restart: always
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
@@ -43,7 +50,8 @@ services:
     # Shares the same Python code as backend, runs a different entry point
     command: ["python", "-m", "app.worker"]
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
