@@ -9,6 +9,7 @@ from app.api.trades import router as trades_router
 from app.api.attachments import router as attachments_router
 from app.api.prices import router as prices_router # <-- Import
 from app.api.dashboard import router as dashboard_router
+from app.api.backup import router as backup_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -25,6 +26,7 @@ app.include_router(trades_router, prefix="/api")
 app.include_router(attachments_router, prefix="/api")
 app.include_router(prices_router, prefix="/api")
 app.include_router(dashboard_router, prefix="/api")
+app.include_router(backup_router, prefix="/api")
 
 @app.get("/health")
 def health_check():
