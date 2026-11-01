@@ -1,7 +1,7 @@
 import time
 import logging
 from app.config import settings
-from app.jobs import fetch_prices, fetch_news, check_alerts
+from app.jobs import fetch_prices, fetch_news, check_alerts, scheduled_backup
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,6 +20,7 @@ def main():
             fetch_prices.run()
             fetch_news.run()
             check_alerts.run()
+            scheduled_backup.run()
 
             logger.info(f"Cycle complete. Sleeping for {interval}s...")
             time.sleep(interval)

@@ -3,6 +3,8 @@ from app.models.strategy import Strategy, StrategyRule, StrategyDeposit
 from app.models.trade import Trade, TradeConditionCheck
 from app.models.attachment import Attachment
 from app.models.instrument import Market, Instrument
+from app.models.app_log import AppLog
+from app.models.alert import Alert
 
 # The master contract for backup and restore.
 # Order is strictly topological (parents before children) for safe restoration.
@@ -51,5 +53,15 @@ BACKUP_REGISTRY = [
         "name": "attachments",
         "model": Attachment,
         "user_filter": lambda query, user_id: query.filter(Attachment.user_id == user_id)
+    },
+    {
+        "name": "alerts",                                                      # <-- NEW
+        "model": Alert,
+        "user_filter": lambda query, user_id: query.filter(Alert.user_id == user_id)
+    },
+    {
+        "name": "app_logs",                                                    # <-- NEW
+        "model": AppLog,
+        "user_filter": lambda query, user_id: query.filter(AppLog.user_id == user_id)
     }
 ]
