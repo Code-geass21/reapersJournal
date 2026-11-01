@@ -10,6 +10,7 @@ import Login from './pages/Login'
 import Strategies from './pages/Strategies';
 import StrategyDetail from './pages/StrategyDetail';
 import Journal from './pages/Journal';
+import TradeForm from './pages/TradeForm';
 import TradeDetail from './pages/TradeDetail';
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
@@ -29,6 +30,8 @@ function App() {
         <Route element={<Layout />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/journal" element={<Journal />} />
+        {/* The new creation route must go before the ID route */}
+        <Route path="/journal/new" element={<TradeForm />} />
         <Route path="/journal/:id" element={<TradeDetail />} />
         <Route path="/strategies" element={<Strategies />} />
         <Route path="/strategies/:id" element={<StrategyDetail />} />
