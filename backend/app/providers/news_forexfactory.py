@@ -5,15 +5,32 @@ import pytz
 
 logger = logging.getLogger(__name__)
 
+# Simple memory cache to prevent 429 Too Many Requests errors
+_news_cache = []
+_last_fetch_time = None
+CACHE_DURATION_HOURS = 1
+
 def fetch_upcoming_news():
-    """Fetches this week's economic events from ForexFactory's public JSON."""
+    """Fetches this week's economic events from ForexFactory's public JSON, with caching."""
+    global _news_cache, _last_fetch_time
+
+    now = datetime.utcnow()
+
+    # Return cached data if it's less than 1 hour old
+    if _last_fetch_time and _news_cache:
+        time_since_fetch = now - _last_fetch_time
+        if time_since_fetch < timedelta(hours=CACHE_DURATION_HOURS):
+            logger.info("Returning cached ForexFactory news data.")
+            # Filter the cached events to only show ones still in the future
+            return [e for e in _news_cache if datetime.fromisoformat(e['time'].replace('Z', '')) > now]
+
+    logger.info("Fetching fresh news data from ForexFactory...")
     try:
         url = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
         response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
         response.raise_for_status()
         events = response.json()
 
-        now = datetime.utcnow()
         # Look ahead 48 hours
         lookahead = now + timedelta(hours=48)
 
@@ -33,8 +50,14 @@ def fetch_upcoming_news():
 
         # Sort by time
         upcoming.sort(key=lambda x: x['time'])
-        return upcoming[:5] # Return next 5 events
+
+        # Update the cache
+        _news_cache = upcoming[:5]
+        _last_fetch_time = now
+
+        return _news_cache
 
     except Exception as e:
         logger.error(f"[News] Failed to fetch ForexFactory data: {e}")
-        return []
+        # On error, return whatever we have in the cache, even if it's old
+        return _news_cache
