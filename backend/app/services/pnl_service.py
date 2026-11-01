@@ -4,16 +4,20 @@ from app.models.price import PriceCache
 
 def get_usd_conversion_rate(db: Session, quote_ccy: str) -> Decimal:
     """Finds the exchange rate to convert the quote currency back to USD."""
-    if quote_ccy == 'USD':
+
+    # FIX: Strip whitespace to prevent database mismatch
+    clean_ccy = quote_ccy.strip().upper()
+
+    if clean_ccy == 'USD':
         return Decimal("1.0")
 
     # Check for USD/QuoteCCY (e.g. USDJPY=X). Rate is 1 / USDJPY
-    usd_base = db.query(PriceCache).filter(PriceCache.provider_symbol.like(f"USD{quote_ccy}%")).first()
+    usd_base = db.query(PriceCache).filter(PriceCache.provider_symbol.like(f"USD{clean_ccy}%")).first()
     if usd_base and usd_base.price:
         return Decimal("1.0") / Decimal(str(usd_base.price))
 
     # Check for QuoteCCY/USD (e.g. GBPUSD=X). Rate is GBPUSD
-    usd_quote = db.query(PriceCache).filter(PriceCache.provider_symbol.like(f"{quote_ccy}USD%")).first()
+    usd_quote = db.query(PriceCache).filter(PriceCache.provider_symbol.like(f"{clean_ccy}USD%")).first()
     if usd_quote and usd_quote.price:
         return Decimal(str(usd_quote.price))
 
