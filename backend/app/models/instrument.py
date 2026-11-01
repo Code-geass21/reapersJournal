@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, Numeric, ForeignKey, Date
+from sqlalchemy import Column, Integer, String, Boolean, Numeric, ForeignKey
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -21,12 +21,6 @@ class Instrument(Base):
     pip_size = Column(Numeric(10, 5), nullable=False)
     contract_size = Column(Integer, default=100000)
     quote_ccy = Column(String(10), nullable=False)
-
-    # Phase 7: Derivatives Fields
-    expiry = Column(Date, nullable=True)
-    strike = Column(Numeric(15, 5), nullable=True)
-    option_type = Column(String(4), nullable=True)
-
     is_active = Column(Boolean, default=True)
 
     market = relationship("Market", back_populates="instruments")
