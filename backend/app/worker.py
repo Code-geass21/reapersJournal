@@ -1,7 +1,8 @@
 import time
 import logging
 from app.config import settings
-from app.jobs import fetch_prices
+from app.jobs import fetch_prices, fetch_news
+from sqlalchemy.exc import OperationalError
 
 # Configure basic logging for the worker process
 logging.basicConfig(
@@ -16,12 +17,15 @@ def main():
 
     while True:
         logger.info("--- Starting worker cycle ---")
+        try:
+            fetch_prices.run()
+            # fetch_news.run()  <-- Add this once Step 1 is complete
 
-        # Execute jobs
-        fetch_prices.run()
-
-        # Sleep until the next cycle
-        logger.info(f"Cycle complete. Sleeping for {interval}s...")
+            logger.info(f"Cycle complete. Sleeping for {interval}s...")
+            time.sleep(interval)
+        except Exception as e:
+            logger.error(f"Worker cycle failed, retrying in 10s: {e}")
+            time.sleep(10)
         time.sleep(interval)
 
 if __name__ == "__main__":
