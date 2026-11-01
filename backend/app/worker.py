@@ -1,7 +1,7 @@
 import time
 import logging
 from app.config import settings
-from app.jobs import fetch_prices, fetch_news
+from app.jobs import fetch_prices, fetch_news, check_alerts
 
 logging.basicConfig(
     level=logging.INFO,
@@ -16,9 +16,10 @@ def main():
     while True:
         logger.info("--- Starting worker cycle ---")
         try:
-            # Execute jobs
+            # Execute jobs sequentially
             fetch_prices.run()
             fetch_news.run()
+            check_alerts.run()
 
             logger.info(f"Cycle complete. Sleeping for {interval}s...")
             time.sleep(interval)
