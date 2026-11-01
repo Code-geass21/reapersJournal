@@ -1,12 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../utils/api';
 
 export default function Settings() {
-    const [activeTab, setActiveTab] = useState('data'); // 'data' or 'backup'
+    const [activeTab, setActiveTab] = useState('data'); // 'data', 'backup', or 'restore'
     const [instruments, setInstruments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [downloading, setDownloading] = useState(false);
+
+    // Restore states
+    const [restoring, setRestoring] = useState(false);
+    const [restorePassword, setRestorePassword] = useState('');
+    const [restoreFile, setRestoreFile] = useState(null);
+    const fileInputRef = useRef(null);
 
     const [newInst, setNewInst] = useState({
         symbol: '',
@@ -51,15 +57,11 @@ export default function Settings() {
     const handleDownloadBackup = async () => {
         setDownloading(true);
         try {
-            // Must use responseType blob for binary file downloads
             const res = await api.get('/backup/download', { responseType: 'blob' });
-
-            // Create a hidden anchor tag to trigger the browser download
             const url = window.URL.createObjectURL(new Blob([res.data]));
             const link = document.createElement('a');
             link.href = url;
 
-            // Extract filename from headers if possible, otherwise use default
             const disposition = res.headers['content-disposition'];
             let filename = `reapers_journal_backup_${new Date().getTime()}.zip`;
             if (disposition && disposition.indexOf('filename=') !== -1) {
@@ -71,12 +73,40 @@ export default function Settings() {
             link.click();
             link.parentNode.removeChild(link);
             window.URL.revokeObjectURL(url);
-
         } catch (err) {
             alert('Backup failed to generate or download.');
             console.error(err);
         } finally {
             setDownloading(false);
+        }
+    };
+
+    const handleRestore = async (e) => {
+        e.preventDefault();
+        if (!restoreFile) {
+            alert('Please select a backup ZIP file first.');
+            return;
+        }
+
+        if (!window.confirm("WARNING: This will wipe your current journal and replace it with the backup. Are you sure you want to proceed?")) return;
+
+        setRestoring(true);
+        const formData = new FormData();
+        formData.append('file', restoreFile);
+        formData.append('password', restorePassword);
+
+        try {
+            await api.post('/restore/', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            alert('Restore completed successfully! Your data has been overwritten.');
+            setRestorePassword('');
+            setRestoreFile(null);
+            if(fileInputRef.current) fileInputRef.current.value = "";
+        } catch (err) {
+            alert(err.response?.data?.detail || 'Restore failed.');
+        } finally {
+            setRestoring(false);
         }
     };
 
@@ -96,6 +126,12 @@ export default function Settings() {
         style={{ background: 'none', border: 'none', color: activeTab === 'backup' ? '#22d3ee' : '#94a3b8', padding: '0.5rem 1rem', fontSize: '1rem', fontWeight: activeTab === 'backup' ? 'bold' : 'normal', borderBottom: activeTab === 'backup' ? '2px solid #22d3ee' : '2px solid transparent', cursor: 'pointer' }}
         >
         Backup & Export
+        </button>
+        <button
+        onClick={() => setActiveTab('restore')}
+        style={{ background: 'none', border: 'none', color: activeTab === 'restore' ? '#ef4444' : '#94a3b8', padding: '0.5rem 1rem', fontSize: '1rem', fontWeight: activeTab === 'restore' ? 'bold' : 'normal', borderBottom: activeTab === 'restore' ? '2px solid #ef4444' : '2px solid transparent', cursor: 'pointer' }}
+        >
+        Restore Data
         </button>
         </div>
 
@@ -170,6 +206,64 @@ export default function Settings() {
             >
             {downloading ? 'Compiling Backup...' : '↓ Download Full Backup (.zip)'}
             </button>
+            </div>
+        )}
+
+        {activeTab === 'restore' && (
+            <div style={{ background: '#1e293b', padding: '2rem', borderRadius: '8px', borderLeft: '4px solid #ef4444' }}>
+            <h3 style={{ margin: '0 0 1rem 0', color: '#ef4444' }}>Restore System Data</h3>
+            <p style={{ color: '#94a3b8', lineHeight: '1.5', marginBottom: '2rem' }}>
+            Uploading a backup ZIP will permanently wipe all current journal entries,
+            strategies, and settings for this account, completely overwriting them with the
+            data contained in the backup file. This action cannot be undone.
+            </p>
+
+            <form onSubmit={handleRestore} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div>
+            <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: '#f8fafc' }}>
+            Select Backup File (.zip)
+            </label>
+            <input
+            type="file"
+            accept=".zip"
+            ref={fileInputRef}
+            onChange={e => setRestoreFile(e.target.files[0])}
+            required
+            style={{ width: '100%', padding: '0.5rem', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#f8fafc' }}
+            />
+            </div>
+
+            <div>
+            <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: '#f8fafc' }}>
+            Confirm Password
+            </label>
+            <input
+            type="password"
+            value={restorePassword}
+            onChange={e => setRestorePassword(e.target.value)}
+            placeholder="Enter your login password to authorize..."
+            required
+            style={{ width: '100%', padding: '0.75rem' }}
+            />
+            </div>
+
+            <button
+            type="submit"
+            disabled={restoring}
+            style={{
+                background: restoring ? '#334155' : '#ef4444',
+                color: '#f8fafc',
+                padding: '1rem',
+                fontWeight: 'bold',
+                border: 'none',
+                cursor: restoring ? 'not-allowed' : 'pointer',
+                borderRadius: '4px',
+                marginTop: '0.5rem'
+            }}
+            >
+            {restoring ? 'Restoring Data...' : 'Overwrite & Restore'}
+            </button>
+            </form>
             </div>
         )}
         </div>

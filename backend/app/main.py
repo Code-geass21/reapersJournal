@@ -10,6 +10,8 @@ from app.api.attachments import router as attachments_router
 from app.api.prices import router as prices_router # <-- Import
 from app.api.dashboard import router as dashboard_router
 from app.api.backup import router as backup_router
+from app.api.restore import router as restore_router
+app.include_router(restore_router, prefix="/api")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
