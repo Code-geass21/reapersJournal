@@ -13,7 +13,9 @@ from app.api.prices import router as prices_router
 from app.api.dashboard import router as dashboard_router
 from app.api.backup import router as backup_router
 from app.api.restore import router as restore_router
-from app.api.alerts import router as alerts_router # <-- NEW IMPORT
+from app.api.alerts import router as alerts_router
+from app.api.settings import router as settings_router
+from app.api.logs import router as logs_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -34,6 +36,7 @@ app.include_router(dashboard_router, prefix="/api")
 app.include_router(backup_router, prefix="/api")
 app.include_router(restore_router, prefix="/api")
 app.include_router(alerts_router, prefix="/api")
+app.include_router(settings_router, prefix="/api")
 app.include_router(logs_router, prefix="/api")
 
 @app.get("/health")
