@@ -33,7 +33,8 @@ app.include_router(prices_router, prefix="/api")
 app.include_router(dashboard_router, prefix="/api")
 app.include_router(backup_router, prefix="/api")
 app.include_router(restore_router, prefix="/api")
-app.include_router(alerts_router, prefix="/api") # <-- NEW ROUTER REGISTRATION
+app.include_router(alerts_router, prefix="/api")
+app.include_router(logs_router, prefix="/api")
 
 @app.get("/health")
 def health_check():
