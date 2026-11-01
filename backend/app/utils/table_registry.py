@@ -2,6 +2,7 @@ from app.models.user import User
 from app.models.strategy import Strategy, StrategyRule, StrategyDeposit
 from app.models.trade import Trade, TradeConditionCheck
 from app.models.attachment import Attachment
+from app.models.instrument import Market, Instrument
 
 # The master contract for backup and restore.
 # Order is strictly topological (parents before children) for safe restoration.
@@ -10,6 +11,16 @@ BACKUP_REGISTRY = [
         "name": "users",
         "model": User,
         "user_filter": lambda query, user_id: query.filter(User.id == user_id)
+    },
+    {
+        "name": "markets",
+        "model": Market,
+        "user_filter": lambda query, user_id: query # Global table, no user filter
+    },
+    {
+        "name": "instruments",
+        "model": Instrument,
+        "user_filter": lambda query, user_id: query # Global table, no user filter
     },
     {
         "name": "strategies",
