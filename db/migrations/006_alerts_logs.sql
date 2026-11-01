@@ -1,0 +1,24 @@
+CREATE TABLE IF NOT EXISTS app_logs (
+    id SERIAL PRIMARY KEY,
+    ts TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    level VARCHAR(20) DEFAULT 'INFO',
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    action VARCHAR(100) NOT NULL,
+    entity_type VARCHAR(50),
+    entity_id INTEGER,
+    before JSONB,
+    after JSONB,
+    source VARCHAR(50) DEFAULT 'api',
+    error_text TEXT,
+    request_id VARCHAR(100)
+);
+
+CREATE TABLE IF NOT EXISTS alerts (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    trade_id INTEGER REFERENCES trades(id) ON DELETE CASCADE,
+    kind VARCHAR(50) NOT NULL,
+    message TEXT NOT NULL,
+    status VARCHAR(20) DEFAULT 'new',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
