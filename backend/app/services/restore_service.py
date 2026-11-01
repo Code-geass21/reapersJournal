@@ -21,19 +21,22 @@ def process_restore(db: Session, user_id: int, zip_filepath: str):
         with zipfile.ZipFile(zip_filepath, 'r') as zip_ref:
             zip_ref.extractall(TEMP_DIR)
 
-        # 2. Re-import JSON data
-        # First, clear existing USER SPECIFIC data backwards
+        # 2. Clear existing USER SPECIFIC data backwards
         for table_def in reversed(BACKUP_REGISTRY):
-            # Skip users (they are logged in) and global tables (markets, instruments)
             if table_def["name"] in ["users", "markets", "instruments"]:
                 continue
 
             query = db.query(table_def["model"])
             filtered_query = table_def["user_filter"](query, user_id)
-            filtered_query.delete(synchronize_session=False)
+
+            # Fix: Fetch the objects first, then delete them to avoid the .join() error
+            objects_to_delete = filtered_query.all()
+            for obj in objects_to_delete:
+                db.delete(obj)
+
         db.commit()
 
-        # Then insert all data forwards
+        # 3. Insert all data forwards
         for table_def in BACKUP_REGISTRY:
             if table_def["name"] == "users":
                 continue
@@ -43,16 +46,14 @@ def process_restore(db: Session, user_id: int, zip_filepath: str):
                 with open(json_file, 'r') as f:
                     rows = json.load(f)
                     for row_data in rows:
-                        # Ensure user_id matches the current user if it's a user-owned table
                         if 'user_id' in row_data:
                             row_data['user_id'] = user_id
 
-                        # Use merge() instead of add() so we safely upsert global tables like Markets
                         new_record = table_def["model"](**row_data)
                         db.merge(new_record)
                 db.commit()
 
-        # 3. Restore image files to the uploads directory
+        # 4. Restore image files to the uploads directory
         uploads_source = os.path.join(TEMP_DIR, "uploads")
         if os.path.exists(uploads_source):
             for filename in os.listdir(uploads_source):
