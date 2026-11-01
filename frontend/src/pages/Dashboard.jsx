@@ -2,13 +2,8 @@
 import { useState, useEffect } from 'react';
 import api from '../utils/api';
 import {
-    LineChart,
-    Line,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer
+    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
+    BarChart, Bar, Cell
 } from 'recharts';
 import NewsPanel from '../components/NewsPanel';
 
@@ -276,6 +271,66 @@ export default function Dashboard() {
                 <NewsPanel />
 
                 </div>
+
+                {/* Analytics Breakdown Row */}
+            <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', marginTop: '2rem' }}>
+
+                {/* Emotion Analytics */}
+                <div style={{ background: '#1e293b', padding: '2rem', borderRadius: '8px', flex: 1, minWidth: '300px' }}>
+                    <h3 style={{ margin: '0 0 1.5rem 0', color: '#f8fafc' }}>P&L by Emotion</h3>
+                    {stats.emotion_stats && stats.emotion_stats.length > 0 ? (
+                        <div style={{ width: '100%', height: 250 }}>
+                            <ResponsiveContainer>
+                                <BarChart data={stats.emotion_stats} layout="vertical" margin={{ top: 0, right: 0, bottom: 0, left: 30 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
+                                    <XAxis type="number" stroke="#94a3b8" />
+                                    <YAxis dataKey="name" type="category" stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                                    <RechartsTooltip
+                                        contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '4px' }}
+                                        itemStyle={{ color: '#f8fafc', fontWeight: 'bold' }}
+                                        formatter={(value, name, props) => [`$${value}`, `Win Rate: ${props.payload.win_rate}%`]}
+                                    />
+                                    <Bar dataKey="pnl" radius={[0, 4, 4, 0]}>
+                                        {stats.emotion_stats.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.pnl >= 0 ? '#22c55e' : '#ef4444'} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    ) : (
+                        <p style={{ color: '#94a3b8', textAlign: 'center' }}>No emotion data logged.</p>
+                    )}
+                </div>
+
+                {/* Setup Tags Analytics */}
+                <div style={{ background: '#1e293b', padding: '2rem', borderRadius: '8px', flex: 1, minWidth: '300px' }}>
+                    <h3 style={{ margin: '0 0 1.5rem 0', color: '#f8fafc' }}>P&L by Setup Tag</h3>
+                    {stats.tag_stats && stats.tag_stats.length > 0 ? (
+                        <div style={{ width: '100%', height: 250 }}>
+                            <ResponsiveContainer>
+                                <BarChart data={stats.tag_stats} layout="vertical" margin={{ top: 0, right: 0, bottom: 0, left: 20 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
+                                    <XAxis type="number" stroke="#94a3b8" />
+                                    <YAxis dataKey="name" type="category" stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                                    <RechartsTooltip
+                                        contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '4px' }}
+                                        itemStyle={{ color: '#f8fafc', fontWeight: 'bold' }}
+                                        formatter={(value, name, props) => [`$${value}`, `Win Rate: ${props.payload.win_rate}%`]}
+                                    />
+                                    <Bar dataKey="pnl" radius={[0, 4, 4, 0]}>
+                                        {stats.tag_stats.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.pnl >= 0 ? '#22d3ee' : '#ef4444'} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    ) : (
+                        <p style={{ color: '#94a3b8', textAlign: 'center' }}>No setup tags logged.</p>
+                    )}
+                </div>
+            </div>
                 </>
         )}
         </div>
