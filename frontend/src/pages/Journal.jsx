@@ -26,7 +26,9 @@ export default function Journal() {
         size: '',
         stop_loss: '',
         take_profit: '',
-        notes: ''
+        notes: '',
+        tags: '',
+        emotion: ''
     });
 
     const fetchData = async () => {
@@ -70,7 +72,9 @@ export default function Journal() {
                 stop_loss: newTrade.stop_loss ? parseFloat(newTrade.stop_loss) : null,
                 take_profit: newTrade.take_profit ? parseFloat(newTrade.take_profit) : null,
                 notes: newTrade.notes || null,
-                condition_checks: conditionChecks // We will implement the checklist UI later
+                tags: newTrade.tags ? newTrade.tags.split(',').map(t => t.trim()) : [],
+                emotion: newTrade.emotion || null,
+                condition_checks: conditionChecks
             };
 
             await api.post('/trades/', payload);
@@ -153,6 +157,24 @@ export default function Journal() {
             <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Take Profit</label>
             <input type="number" step="any" value={newTrade.take_profit} onChange={e => setNewTrade({...newTrade, take_profit: e.target.value})} style={{ width: '100%', padding: '0.5rem' }} />
             </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem' }}>
+                <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Tags (comma separated)</label>
+                    <input type="text" value={newTrade.tags} onChange={e => setNewTrade({...newTrade, tags: e.target.value})} placeholder="e.g., FOMC, trendline bounce" style={{ width: '100%', padding: '0.5rem' }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Emotion</label>
+                    <select value={newTrade.emotion} onChange={e => setNewTrade({...newTrade, emotion: e.target.value})} style={{ width: '100%', padding: '0.5rem' }}>
+                        <option value="">-- Select --</option>
+                        <option value="calm">Calm / Neutral</option>
+                        <option value="anxious">Anxious</option>
+                        <option value="fomo">FOMO</option>
+                        <option value="overconfident">Overconfident</option>
+                        <option value="frustrated">Frustrated / Revenge</option>
+                    </select>
+                </div>
             </div>
 
             <div>

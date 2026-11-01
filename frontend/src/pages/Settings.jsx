@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../utils/api';
+import { exportTradesToCSV } from '../utils/export';
 
 export default function Settings() {
     const [activeTab, setActiveTab] = useState('data'); // 'data', 'backup', or 'restore'
@@ -205,6 +206,27 @@ export default function Settings() {
             }}
             >
             {downloading ? 'Compiling Backup...' : '↓ Download Full Backup (.zip)'}
+            </button>
+            {/* ADD EXPORT ANALYTICS HERE */}
+            <h3 style={{ margin: '2rem 0 1rem 0' }}>Export Analytics</h3>
+            <p style={{ color: '#94a3b8', lineHeight: '1.5', marginBottom: '2rem' }}>
+                Download a flat CSV file of all your trades, including tags, emotions, and R-multiples, for deeper analysis in Excel or Google Sheets.
+            </p>
+            <button
+                onClick={() => exportTradesToCSV()}
+                style={{
+                    background: '#10b981',
+                    color: '#f8fafc',
+                    padding: '1rem 2rem',
+                    fontWeight: 'bold',
+                    border: 'none',
+                    cursor: 'pointer',
+                    borderRadius: '4px',
+                    width: '100%',
+                    fontSize: '1.1rem'
+                }}
+            >
+                ↓ Export Trades to CSV
             </button>
             </div>
         )}
