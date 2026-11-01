@@ -10,6 +10,7 @@ import TradeDetail from './pages/TradeDetail';
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
 import Logs from './pages/Logs';
+import Help from './pages/Help';
 
 // Components
 import TopBar from './components/TopBar';
@@ -35,6 +36,7 @@ function App() {
             <Route path="/strategies/:id" element={<StrategyDetail />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/logs" element={<Logs />} />
+            <Route path="/help" element={<Help />} />
         </Routes>
         </main>
         </div>

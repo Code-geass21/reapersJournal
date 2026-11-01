@@ -69,6 +69,7 @@ export default function TopBar() {
             <Link to="/strategies" style={{ color: '#f8fafc', textDecoration: 'none', fontWeight: 'bold' }}>Strategies</Link>
             <Link to="/settings" style={{ color: '#f8fafc', textDecoration: 'none', fontWeight: 'bold' }}>Settings</Link>
             <Link to="/logs" style={{ color: '#f8fafc', textDecoration: 'none', fontWeight: 'bold' }}>Logs</Link>
+            <Link to="/help" style={{ color: '#f8fafc', textDecoration: 'none', fontWeight: 'bold' }}>Help</Link>
         </div>
         </div>
 
