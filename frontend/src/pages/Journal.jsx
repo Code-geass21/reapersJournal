@@ -3,6 +3,7 @@ import api from '../utils/api';
 import { Link } from 'react-router-dom';
 import LivePriceBadge from '../components/LivePriceBadge';
 import { useLivePrices } from '../hooks/useLivePrices';
+import ConditionChecklist from '../components/ConditionChecklist';
 
 export default function Journal() {
     const [trades, setTrades] = useState([]);
@@ -11,6 +12,7 @@ export default function Journal() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [isFormOpen, setIsFormOpen] = useState(false);
+    const [conditionChecks, setConditionChecks] = useState([]);
 
     // 1. Initialize the live prices hook
     const { liveData } = useLivePrices(30);
@@ -68,7 +70,7 @@ export default function Journal() {
                 stop_loss: newTrade.stop_loss ? parseFloat(newTrade.stop_loss) : null,
                 take_profit: newTrade.take_profit ? parseFloat(newTrade.take_profit) : null,
                 notes: newTrade.notes || null,
-                condition_checks: [] // We will implement the checklist UI later
+                condition_checks: conditionChecks // We will implement the checklist UI later
             };
 
             await api.post('/trades/', payload);
@@ -157,6 +159,12 @@ export default function Journal() {
             <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Notes</label>
             <textarea value={newTrade.notes} onChange={e => setNewTrade({...newTrade, notes: e.target.value})} style={{ width: '100%', padding: '0.5rem', minHeight: '80px' }} />
             </div>
+
+            {/* ADD THIS EXACT BLOCK HERE */}
+            <ConditionChecklist
+                strategyId={newTrade.strategy_id}
+                onChecksChange={setConditionChecks}
+            />
 
             <button type="submit" style={{ background: '#22d3ee', color: '#0f172a', padding: '0.5rem', fontWeight: 'bold', border: 'none', cursor: 'pointer', borderRadius: '4px', marginTop: '0.5rem' }}>
             Log Trade
