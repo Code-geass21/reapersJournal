@@ -12,34 +12,38 @@ logger = logging.getLogger(__name__)
 
 def run():
     """
-    Job to fetch current prices for all symbols that have open trades
-    and upsert them into the price_cache table.
+    Job to fetch current prices for all symbols that have open trades,
+    PLUS the USD conversion pairs for ALL historical quote currencies.
     """
     db: Session = SessionLocal()
     try:
+        # 1. Fetch symbols for OPEN trades
         open_symbols_query = (
-            db.query(Instrument.provider_symbol, Instrument.quote_ccy)
+            db.query(Instrument.provider_symbol)
             .join(Trade, Trade.instrument_id == Instrument.id)
             .filter(Trade.status == 'open')
             .distinct()
         )
+        symbols = [row[0] for row in open_symbols_query.all()]
 
-        # Get both the symbols and their quote currencies
-        open_instruments = open_symbols_query.all()
-        symbols = [row[0] for row in open_instruments]
+        # 2. Fetch unique quote currencies across ALL trades (open and closed)
+        all_quote_currencies_query = (
+            db.query(Instrument.quote_ccy)
+            .join(Trade, Trade.instrument_id == Instrument.id)
+            .distinct()
+        )
 
-        if not symbols:
-            logger.info("No open trades found. Skipping price fetch.")
-            return
-
-        # Dynamically append the required conversion pairs
-        for row in open_instruments:
-            quote_ccy = row[1]
+        # 3. Append the required conversion pairs
+        for row in all_quote_currencies_query.all():
+            quote_ccy = row[0].strip().upper()
             if quote_ccy != 'USD':
-                # Determine standard Forex provider format (e.g. 'USDJPY=X')
                 conversion_pair = f"USD{quote_ccy}=X"
                 if conversion_pair not in symbols:
                     symbols.append(conversion_pair)
+
+        if not symbols:
+            logger.info("No trades found. Skipping price fetch.")
+            return
 
         logger.info(f"Fetching prices for {len(symbols)} symbols using TwelveData...")
         price_data = price_twelvedata.fetch_prices(symbols)
