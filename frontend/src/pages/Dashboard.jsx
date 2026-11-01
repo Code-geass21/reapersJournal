@@ -234,7 +234,7 @@ export default function Dashboard() {
                     tick={{ fill: '#94a3b8' }}
                     />
 
-                    <Tooltip
+                    <RechartsTooltip
                     content={<CustomTooltip />}
                     />
 
