@@ -18,16 +18,28 @@ def run():
     db: Session = SessionLocal()
     try:
         open_symbols_query = (
-            db.query(Instrument.provider_symbol)
+            db.query(Instrument.provider_symbol, Instrument.quote_ccy)
             .join(Trade, Trade.instrument_id == Instrument.id)
             .filter(Trade.status == 'open')
             .distinct()
         )
-        symbols = [row[0] for row in open_symbols_query.all()]
+
+        # Get both the symbols and their quote currencies
+        open_instruments = open_symbols_query.all()
+        symbols = [row[0] for row in open_instruments]
 
         if not symbols:
             logger.info("No open trades found. Skipping price fetch.")
             return
+
+        # Dynamically append the required conversion pairs
+        for row in open_instruments:
+            quote_ccy = row[1]
+            if quote_ccy != 'USD':
+                # Determine standard Forex provider format (e.g. 'USDJPY=X')
+                conversion_pair = f"USD{quote_ccy}=X"
+                if conversion_pair not in symbols:
+                    symbols.append(conversion_pair)
 
         logger.info(f"Fetching prices for {len(symbols)} symbols using TwelveData...")
         price_data = price_twelvedata.fetch_prices(symbols)
