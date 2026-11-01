@@ -13,6 +13,7 @@ from app.api.prices import router as prices_router
 from app.api.dashboard import router as dashboard_router
 from app.api.backup import router as backup_router
 from app.api.restore import router as restore_router
+from app.api.alerts import router as alerts_router # <-- NEW IMPORT
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -32,6 +33,7 @@ app.include_router(prices_router, prefix="/api")
 app.include_router(dashboard_router, prefix="/api")
 app.include_router(backup_router, prefix="/api")
 app.include_router(restore_router, prefix="/api")
+app.include_router(alerts_router, prefix="/api") # <-- NEW ROUTER REGISTRATION
 
 @app.get("/health")
 def health_check():
