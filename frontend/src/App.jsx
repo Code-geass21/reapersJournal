@@ -9,6 +9,7 @@ import Journal from './pages/Journal';
 import TradeDetail from './pages/TradeDetail';
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
+import Logs from './pages/Logs';
 
 // Components
 import TopBar from './components/TopBar';
@@ -27,12 +28,13 @@ function App() {
 
         <main>
         <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/journal" element={<Journal />} />
-        <Route path="/journal/:id" element={<TradeDetail />} />
-        <Route path="/strategies" element={<Strategies />} />
-        <Route path="/strategies/:id" element={<StrategyDetail />} />
-        <Route path="/settings" element={<Settings />} />
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/journal" element={<Journal />} />
+            <Route path="/journal/:id" element={<TradeDetail />} />
+            <Route path="/strategies" element={<Strategies />} />
+            <Route path="/strategies/:id" element={<StrategyDetail />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/logs" element={<Logs />} />
         </Routes>
         </main>
         </div>

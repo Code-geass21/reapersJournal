@@ -64,10 +64,11 @@ export default function TopBar() {
         <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
         <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#22d3ee' }}>Reaper's Journal</h1>
         <div style={{ display: 'flex', gap: '1.5rem' }}>
-        <Link to="/" style={{ color: '#f8fafc', textDecoration: 'none', fontWeight: 'bold' }}>Dashboard</Link>
-        <Link to="/journal" style={{ color: '#f8fafc', textDecoration: 'none', fontWeight: 'bold' }}>Journal</Link>
-        <Link to="/strategies" style={{ color: '#f8fafc', textDecoration: 'none', fontWeight: 'bold' }}>Strategies</Link>
-        <Link to="/settings" style={{ color: '#f8fafc', textDecoration: 'none', fontWeight: 'bold' }}>Settings</Link>
+            <Link to="/" style={{ color: '#f8fafc', textDecoration: 'none', fontWeight: 'bold' }}>Dashboard</Link>
+            <Link to="/journal" style={{ color: '#f8fafc', textDecoration: 'none', fontWeight: 'bold' }}>Journal</Link>
+            <Link to="/strategies" style={{ color: '#f8fafc', textDecoration: 'none', fontWeight: 'bold' }}>Strategies</Link>
+            <Link to="/settings" style={{ color: '#f8fafc', textDecoration: 'none', fontWeight: 'bold' }}>Settings</Link>
+            <Link to="/logs" style={{ color: '#f8fafc', textDecoration: 'none', fontWeight: 'bold' }}>Logs</Link>
         </div>
         </div>
 
