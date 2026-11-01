@@ -50,8 +50,9 @@ def get_open_trade_prices(
         is_stale = age_seconds > stale_threshold_seconds
 
         # Use existing service to calculate unrealized P&L
-        inst_dict = {"contract_size": instrument.contract_size, "pip_size": instrument.pip_size}
+        inst_dict = {"contract_size": instrument.contract_size, "pip_size": instrument.pip_size, "quote_ccy": instrument.quote_ccy}
         pnl_data = pnl_service.calculate_pnl(
+            db=db,
             direction=trade.direction,
             entry_price=trade.entry_price,
             exit_price=current_price,

@@ -41,9 +41,10 @@ def update_trade(db: Session, user_id: int, trade_id: int, trade_in: TradeUpdate
             raise HTTPException(status_code=400, detail="Exit price is required to close a trade")
 
         instrument = db.query(Instrument).filter(Instrument.id == trade.instrument_id).first()
-        inst_dict = {"contract_size": instrument.contract_size, "pip_size": instrument.pip_size}
+        inst_dict = {"contract_size": instrument.contract_size, "pip_size": instrument.pip_size, "quote_ccy": instrument.quote_ccy}
 
         pnl_data = pnl_service.calculate_pnl(
+            db=db,
             direction=trade.direction,
             entry_price=float(trade.entry_price),
             exit_price=update_data['exit_price'],
