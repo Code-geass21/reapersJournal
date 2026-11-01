@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, func
+from sqlalchemy.orm import relationship
 from app.database import Base
 
 class User(Base):
@@ -14,3 +15,6 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # ADD THIS LINE: Links to the UserPreference model (uselist=False makes it 1-to-1)
+    preferences = relationship("UserPreference", back_populates="user", uselist=False, cascade="all, delete-orphan")
