@@ -1,6 +1,10 @@
 import { Routes, Route } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth'
 
+// Components
+import Layout from './components/Layout';
+import ProtectedRoute from './components/ProtectedRoute';
+
 // Pages
 import Login from './pages/Login'
 import Strategies from './pages/Strategies';
@@ -12,9 +16,6 @@ import Settings from './pages/Settings';
 import Logs from './pages/Logs';
 import Help from './pages/Help';
 
-// Components
-import TopBar from './components/TopBar';
-
 function App() {
     const { token } = useAuth();
 
@@ -23,23 +24,20 @@ function App() {
     }
 
     return (
-        <div>
-        {/* The new persistent TopBar replaces the hardcoded nav */}
-        <TopBar />
-
-        <main>
         <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/journal" element={<Journal />} />
-            <Route path="/journal/:id" element={<TradeDetail />} />
-            <Route path="/strategies" element={<Strategies />} />
-            <Route path="/strategies/:id" element={<StrategyDetail />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/logs" element={<Logs />} />
-            <Route path="/help" element={<Help />} />
+        <Route element={<ProtectedRoute />}>
+        <Route element={<Layout />}>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/journal" element={<Journal />} />
+        <Route path="/journal/:id" element={<TradeDetail />} />
+        <Route path="/strategies" element={<Strategies />} />
+        <Route path="/strategies/:id" element={<StrategyDetail />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/logs" element={<Logs />} />
+        <Route path="/help" element={<Help />} />
+        </Route>
+        </Route>
         </Routes>
-        </main>
-        </div>
     )
 }
 export default App

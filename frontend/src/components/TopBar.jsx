@@ -56,7 +56,7 @@ export default function TopBar() {
             background: '#1e293b',
             padding: '1rem 2rem',
             display: 'flex',
-            justifyContent: 'space-between',
+            justifyContent: 'flex-end',
             alignItems: 'center',
             borderBottom: '1px solid #334155'
         }}>
