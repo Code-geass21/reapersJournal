@@ -9,10 +9,20 @@ from app.providers import news_forexfactory
 
 logger = logging.getLogger(__name__)
 
+# Memory state to track if we already fetched today
+_last_news_date = None
+
 def run():
     """
     Job to fetch upcoming news events and populate the news_events table.
+    Now optimized to run only once daily.
     """
+    global _last_news_date
+    current_date = datetime.now(timezone.utc).date()
+
+    if _last_news_date == current_date:
+        return # News already fetched today
+
     db: Session = SessionLocal()
     try:
         logger.info("Fetching news events via worker...")
@@ -54,6 +64,9 @@ def run():
         db.query(NewsEvent).filter(NewsEvent.event_time_utc < yesterday).delete()
 
         db.commit()
+
+        # Mark as completed for today
+        _last_news_date = current_date
         logger.info(f"Successfully upserted {upsert_count} news events.")
 
     except Exception as e:

@@ -1,14 +1,26 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List
+import logging
+
 from app.database import get_db
 from app.models.trade import Trade
 from app.schemas.trade import TradeCreate, TradeUpdate, TradeOut
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.services import trade_service
+from app.jobs import fetch_prices, check_alerts
 
 router = APIRouter(prefix="/trades", tags=["Trades"])
+logger = logging.getLogger(__name__)
+
+def trigger_background_price_and_alerts():
+    """Helper function to run pricing and alerts sequentially in the background."""
+    try:
+        fetch_prices.run()
+        check_alerts.run()
+    except Exception as e:
+        logger.error(f"Background price/alert trigger failed: {e}")
 
 @router.get("/", response_model=List[TradeOut])
 def get_trades(
@@ -38,10 +50,17 @@ def get_trade(
 @router.post("/", response_model=TradeOut)
 def create_trade(
     trade_in: TradeCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    return trade_service.create_trade(db, current_user.id, trade_in)
+    # 1. Save the trade normally
+    new_trade = trade_service.create_trade(db, current_user.id, trade_in)
+
+    # 2. Fire the price check and alert engine immediately in the background
+    background_tasks.add_task(trigger_background_price_and_alerts)
+
+    return new_trade
 
 @router.put("/{trade_id}", response_model=TradeOut)
 def update_trade(
