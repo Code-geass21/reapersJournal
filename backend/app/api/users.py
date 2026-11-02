@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, Body
+from fastapi import APIRouter, Depends, UploadFile, File, status
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.schemas.user import UserOut
-from app.services import user_service
+from app.services import user_service, attachment_service
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -40,3 +40,20 @@ def update_my_password(
         password_data.new_password
     )
     return {"detail": "Password updated successfully"}
+
+@router.post("/me/avatar", response_model=UserOut)
+def upload_my_avatar(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Save physical file and DB attachment record
+    attachment = attachment_service.save_attachment(
+        db, file, current_user.id, owner_type="avatar", owner_id=current_user.id
+    )
+
+    # Link to user profile
+    current_user.avatar_attachment_id = attachment.id
+    db.commit()
+    db.refresh(current_user)
+    return current_user

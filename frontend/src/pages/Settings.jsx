@@ -1,55 +1,120 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../utils/api';
 import { exportTradesToCSV } from '../utils/export';
+import StrategyPicker from '../components/StrategyPicker';
+import { useAuth } from '../hooks/useAuth';
 
 export default function Settings() {
-    const [activeTab, setActiveTab] = useState('data'); // 'data', 'backup', or 'restore'
+    const [activeTab, setActiveTab] = useState('profile');
     const [instruments, setInstruments] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [downloading, setDownloading] = useState(false);
+    const { logout } = useAuth();
 
-    // Restore states
+    // Profile States
+    const [profile, setProfile] = useState({ display_name: '' });
+    const [passwords, setPasswords] = useState({ current_password: '', new_password: '' });
+    const [avatarUploading, setAvatarUploading] = useState(false);
+
+    // Preferences State
+    const [preferences, setPreferences] = useState({
+        theme: 'dark',
+        default_strategy_ids: [],
+        refresh_secs: 30
+    });
+
+    // Instrument States
+    const [newInst, setNewInst] = useState({
+        symbol: '', provider_symbol: '', market_code: 'FOREX',
+        pip_size: '0.0001', contract_size: 100000, quote_ccy: 'USD'
+    });
+
+    // Backup/Restore States
+    const [downloading, setDownloading] = useState(false);
     const [restoring, setRestoring] = useState(false);
     const [restorePassword, setRestorePassword] = useState('');
     const [restoreFile, setRestoreFile] = useState(null);
     const fileInputRef = useRef(null);
 
-    const [newInst, setNewInst] = useState({
-        symbol: '',
-        provider_symbol: '',
-        market_code: 'FOREX',
-        pip_size: '0.0001',
-        contract_size: 100000,
-        quote_ccy: 'USD'
-    });
+    useEffect(() => {
+        const fetchAll = async () => {
+            try {
+                const [instRes, userRes, prefRes] = await Promise.all([
+                    api.get('/instruments/'),
+                    api.get('/users/me'),
+                    api.get('/settings/preferences')
+                ]);
+                setInstruments(instRes.data);
+                setProfile({ display_name: userRes.data.display_name || '' });
+                setPreferences(prefRes.data);
+            } catch (err) {
+                console.error('Failed to load settings data', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchAll();
+    }, []);
 
-    const fetchInstruments = async () => {
+    // --- Profile Handlers ---
+    const handleUpdateProfile = async (e) => {
+        e.preventDefault();
         try {
-            const res = await api.get('/instruments/');
-            setInstruments(res.data);
+            await api.put('/users/me', profile);
+            alert('Profile updated');
         } catch (err) {
-            setError('Failed to load instruments.');
-        } finally {
-            setLoading(false);
+            alert(err.response?.data?.detail || 'Update failed');
         }
     };
 
-    useEffect(() => {
-        fetchInstruments();
-    }, []);
+    const handleUpdatePassword = async (e) => {
+        e.preventDefault();
+        try {
+            await api.put('/users/me/password', passwords);
+            alert('Password updated. Please log in again.');
+            logout();
+        } catch (err) {
+            alert(err.response?.data?.detail || 'Password update failed');
+        }
+    };
 
+    const handleAvatarUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setAvatarUploading(true);
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+            await api.post('/users/me/avatar', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            alert('Avatar updated! Refresh to see changes.');
+        } catch (err) {
+            alert('Avatar upload failed');
+        } finally {
+            setAvatarUploading(false);
+        }
+    };
+
+    // --- Preferences Handler ---
+    const handleUpdatePreferences = async (e) => {
+        e.preventDefault();
+        try {
+            await api.put('/settings/preferences', preferences);
+            alert('Preferences saved');
+        } catch (err) {
+            alert('Failed to save preferences');
+        }
+    };
+
+    // --- Data Handlers ---
     const handleCreateInstrument = async (e) => {
         e.preventDefault();
         try {
-            const payload = {
-                ...newInst,
-                pip_size: parseFloat(newInst.pip_size),
-                contract_size: parseInt(newInst.contract_size)
-            };
+            const payload = { ...newInst, pip_size: parseFloat(newInst.pip_size), contract_size: parseInt(newInst.contract_size) };
             await api.post('/instruments/', payload);
             setNewInst({ symbol: '', provider_symbol: '', market_code: 'FOREX', pip_size: '0.0001', contract_size: 100000, quote_ccy: 'USD' });
-            fetchInstruments();
+            const res = await api.get('/instruments/');
+            setInstruments(res.data);
         } catch (err) {
             alert(err.response?.data?.detail || 'Failed to add instrument');
         }
@@ -62,21 +127,12 @@ export default function Settings() {
             const url = window.URL.createObjectURL(new Blob([res.data]));
             const link = document.createElement('a');
             link.href = url;
-
-            const disposition = res.headers['content-disposition'];
-            let filename = `reapers_journal_backup_${new Date().getTime()}.zip`;
-            if (disposition && disposition.indexOf('filename=') !== -1) {
-                filename = disposition.split('filename=')[1].replace(/['"]/g, '');
-            }
-
-            link.setAttribute('download', filename);
+            link.setAttribute('download', `rj_backup_${new Date().getTime()}.zip`);
             document.body.appendChild(link);
             link.click();
-            link.parentNode.removeChild(link);
-            window.URL.revokeObjectURL(url);
+            link.remove();
         } catch (err) {
-            alert('Backup failed to generate or download.');
-            console.error(err);
+            alert('Backup download failed.');
         } finally {
             setDownloading(false);
         }
@@ -84,12 +140,8 @@ export default function Settings() {
 
     const handleRestore = async (e) => {
         e.preventDefault();
-        if (!restoreFile) {
-            alert('Please select a backup ZIP file first.');
-            return;
-        }
-
-        if (!window.confirm("WARNING: This will wipe your current journal and replace it with the backup. Are you sure you want to proceed?")) return;
+        if (!restoreFile) return alert('Select a backup ZIP file first.');
+        if (!window.confirm("WARNING: This will overwrite your current journal data. Proceed?")) return;
 
         setRestoring(true);
         const formData = new FormData();
@@ -97,13 +149,9 @@ export default function Settings() {
         formData.append('password', restorePassword);
 
         try {
-            await api.post('/restore/', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            alert('Restore completed successfully! Your data has been overwritten.');
-            setRestorePassword('');
-            setRestoreFile(null);
-            if(fileInputRef.current) fileInputRef.current.value = "";
+            await api.post('/restore/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            alert('Restore complete! Logging you out to refresh state.');
+            logout();
         } catch (err) {
             alert(err.response?.data?.detail || 'Restore failed.');
         } finally {
@@ -113,181 +161,167 @@ export default function Settings() {
 
     if (loading) return <div style={{ padding: '2rem' }}>Loading Settings...</div>;
 
+    const TabButton = ({ id, label, isDanger }) => (
+        <button
+            onClick={() => setActiveTab(id)}
+            style={{
+                background: 'none', border: 'none', padding: '0.5rem 1rem', fontSize: '1rem', cursor: 'pointer',
+                color: activeTab === id ? (isDanger ? '#ef4444' : '#22d3ee') : '#94a3b8',
+                fontWeight: activeTab === id ? 'bold' : 'normal',
+                borderBottom: activeTab === id ? `2px solid ${isDanger ? '#ef4444' : '#22d3ee'}` : '2px solid transparent'
+            }}
+        >
+            {label}
+        </button>
+    );
+
     return (
         <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
-        <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid #334155', marginBottom: '2rem' }}>
-        <button
-        onClick={() => setActiveTab('data')}
-        style={{ background: 'none', border: 'none', color: activeTab === 'data' ? '#22d3ee' : '#94a3b8', padding: '0.5rem 1rem', fontSize: '1rem', fontWeight: activeTab === 'data' ? 'bold' : 'normal', borderBottom: activeTab === 'data' ? '2px solid #22d3ee' : '2px solid transparent', cursor: 'pointer' }}
-        >
-        Instruments
-        </button>
-        <button
-        onClick={() => setActiveTab('backup')}
-        style={{ background: 'none', border: 'none', color: activeTab === 'backup' ? '#22d3ee' : '#94a3b8', padding: '0.5rem 1rem', fontSize: '1rem', fontWeight: activeTab === 'backup' ? 'bold' : 'normal', borderBottom: activeTab === 'backup' ? '2px solid #22d3ee' : '2px solid transparent', cursor: 'pointer' }}
-        >
-        Backup & Export
-        </button>
-        <button
-        onClick={() => setActiveTab('restore')}
-        style={{ background: 'none', border: 'none', color: activeTab === 'restore' ? '#ef4444' : '#94a3b8', padding: '0.5rem 1rem', fontSize: '1rem', fontWeight: activeTab === 'restore' ? 'bold' : 'normal', borderBottom: activeTab === 'restore' ? '2px solid #ef4444' : '2px solid transparent', cursor: 'pointer' }}
-        >
-        Restore Data
-        </button>
-        </div>
-
-        {activeTab === 'data' && (
-            <>
-            <div style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
-            <h3 style={{ marginTop: 0 }}>Add Currency Pair</h3>
-            <form onSubmit={handleCreateInstrument} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ display: 'flex', gap: '1rem' }}>
-            <div style={{ flex: 1 }}>
-            <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Display Symbol (e.g., AUD/JPY)</label>
-            <input value={newInst.symbol} onChange={e => setNewInst({...newInst, symbol: e.target.value.toUpperCase()})} required style={{ width: '100%', padding: '0.5rem' }} />
-            </div>
-            <div style={{ flex: 1 }}>
-            <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>API Symbol (e.g., AUDJPY)</label>
-            <input value={newInst.provider_symbol} onChange={e => setNewInst({...newInst, provider_symbol: e.target.value.toUpperCase()})} required style={{ width: '100%', padding: '0.5rem' }} />
-            </div>
-            </div>
-            <div style={{ display: 'flex', gap: '1rem' }}>
-            <div style={{ flex: 1 }}>
-            <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Quote Currency (e.g., JPY)</label>
-            <input value={newInst.quote_ccy} onChange={e => setNewInst({...newInst, quote_ccy: e.target.value.toUpperCase()})} required style={{ width: '100%', padding: '0.5rem' }} />
-            </div>
-            <div style={{ flex: 1 }}>
-            <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Pip Size (0.01 for JPY, 0.0001 for others)</label>
-            <input type="number" step="any" value={newInst.pip_size} onChange={e => setNewInst({...newInst, pip_size: e.target.value})} required style={{ width: '100%', padding: '0.5rem' }} />
-            </div>
-            </div>
-            <button type="submit" style={{ background: '#22d3ee', color: '#0f172a', padding: '0.75rem', fontWeight: 'bold', border: 'none', cursor: 'pointer', borderRadius: '4px', marginTop: '0.5rem' }}>
-            + Add Instrument
-            </button>
-            </form>
+            <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid #334155', marginBottom: '2rem', overflowX: 'auto' }}>
+                <TabButton id="profile" label="Profile" />
+                <TabButton id="preferences" label="Preferences" />
+                <TabButton id="data" label="Instruments" />
+                <TabButton id="backup" label="Backup/Export" />
+                <TabButton id="restore" label="Restore Data" isDanger={true} />
             </div>
 
-            <div style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '8px' }}>
-            <h3 style={{ marginTop: 0 }}>Active Instruments</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem' }}>
-            {instruments.map(inst => (
-                <div key={inst.id} style={{ background: '#0f172a', padding: '1rem', borderRadius: '4px', textAlign: 'center', border: '1px solid #334155' }}>
-                <div style={{ fontWeight: 'bold', color: '#f8fafc' }}>{inst.symbol}</div>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Pip: {inst.pip_size}</div>
+            {/* PROFILE TAB */}
+            {activeTab === 'profile' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                    <div style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '8px' }}>
+                        <h3 style={{ marginTop: 0, color: '#f8fafc' }}>Profile Picture</h3>
+                        <label style={{ background: '#334155', color: '#f8fafc', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer', display: 'inline-block' }}>
+                            {avatarUploading ? 'Uploading...' : 'Upload New Avatar'}
+                            <input type="file" accept="image/*" onChange={handleAvatarUpload} disabled={avatarUploading} style={{ display: 'none' }} />
+                        </label>
+                    </div>
+
+                    <div style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '8px' }}>
+                        <h3 style={{ marginTop: 0, color: '#f8fafc' }}>Personal Details</h3>
+                        <form onSubmit={handleUpdateProfile} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
+                            <div style={{ flex: 1 }}>
+                                <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: '#94a3b8' }}>Display Name</label>
+                                <input value={profile.display_name} onChange={e => setProfile({...profile, display_name: e.target.value})} style={{ width: '100%', padding: '0.5rem', background: '#0f172a', border: '1px solid #334155', color: '#f8fafc', borderRadius: '4px' }} />
+                            </div>
+                            <button type="submit" style={{ background: '#22d3ee', color: '#0f172a', padding: '0.5rem 1rem', fontWeight: 'bold', border: 'none', cursor: 'pointer', borderRadius: '4px' }}>Save Name</button>
+                        </form>
+                    </div>
+
+                    <div style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '8px', borderLeft: '4px solid #ef4444' }}>
+                        <h3 style={{ marginTop: 0, color: '#f8fafc' }}>Change Password</h3>
+                        <form onSubmit={handleUpdatePassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <input type="password" placeholder="Current Password" value={passwords.current_password} onChange={e => setPasswords({...passwords, current_password: e.target.value})} required style={{ padding: '0.5rem', background: '#0f172a', border: '1px solid #334155', color: '#f8fafc', borderRadius: '4px' }} />
+                            <input type="password" placeholder="New Password" value={passwords.new_password} onChange={e => setPasswords({...passwords, new_password: e.target.value})} required style={{ padding: '0.5rem', background: '#0f172a', border: '1px solid #334155', color: '#f8fafc', borderRadius: '4px' }} />
+                            <button type="submit" style={{ background: '#ef4444', color: '#f8fafc', padding: '0.5rem', fontWeight: 'bold', border: 'none', cursor: 'pointer', borderRadius: '4px', width: 'fit-content' }}>Update Password</button>
+                        </form>
+                    </div>
                 </div>
-            ))}
-            </div>
-            </div>
-            </>
-        )}
+            )}
 
-        {activeTab === 'backup' && (
-            <div style={{ background: '#1e293b', padding: '2rem', borderRadius: '8px', borderLeft: '4px solid #3b82f6' }}>
-            <h3 style={{ margin: '0 0 1rem 0' }}>Data Portability</h3>
-            <p style={{ color: '#94a3b8', lineHeight: '1.5', marginBottom: '2rem' }}>
-            Reaper's Journal is designed to keep you in full control of your data.
-            Clicking the button below will generate a ZIP file containing every strategy, rule,
-            trade, checklist, and transaction associated with your account in plain JSON format,
-            along with the original image files for all of your trade screenshots.
-            </p>
-            <button
-            onClick={handleDownloadBackup}
-            disabled={downloading}
-            style={{
-                background: downloading ? '#334155' : '#3b82f6',
-                color: '#f8fafc',
-                padding: '1rem 2rem',
-                fontWeight: 'bold',
-                border: 'none',
-                cursor: downloading ? 'not-allowed' : 'pointer',
-                borderRadius: '4px',
-                width: '100%',
-                fontSize: '1.1rem'
-            }}
-            >
-            {downloading ? 'Compiling Backup...' : '↓ Download Full Backup (.zip)'}
-            </button>
-            {/* ADD EXPORT ANALYTICS HERE */}
-            <h3 style={{ margin: '2rem 0 1rem 0' }}>Export Analytics</h3>
-            <p style={{ color: '#94a3b8', lineHeight: '1.5', marginBottom: '2rem' }}>
-                Download a flat CSV file of all your trades, including tags, emotions, and R-multiples, for deeper analysis in Excel or Google Sheets.
-            </p>
-            <button
-                onClick={() => exportTradesToCSV()}
-                style={{
-                    background: '#10b981',
-                    color: '#f8fafc',
-                    padding: '1rem 2rem',
-                    fontWeight: 'bold',
-                    border: 'none',
-                    cursor: 'pointer',
-                    borderRadius: '4px',
-                    width: '100%',
-                    fontSize: '1.1rem'
-                }}
-            >
-                ↓ Export Trades to CSV
-            </button>
-            </div>
-        )}
+            {/* PREFERENCES TAB */}
+            {activeTab === 'preferences' && (
+                <div style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '8px' }}>
+                    <h3 style={{ marginTop: 0, color: '#f8fafc' }}>Application Preferences</h3>
+                    <form onSubmit={handleUpdatePreferences} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
-        {activeTab === 'restore' && (
-            <div style={{ background: '#1e293b', padding: '2rem', borderRadius: '8px', borderLeft: '4px solid #ef4444' }}>
-            <h3 style={{ margin: '0 0 1rem 0', color: '#ef4444' }}>Restore System Data</h3>
-            <p style={{ color: '#94a3b8', lineHeight: '1.5', marginBottom: '2rem' }}>
-            Uploading a backup ZIP will permanently wipe all current journal entries,
-            strategies, and settings for this account, completely overwriting them with the
-            data contained in the backup file. This action cannot be undone.
-            </p>
+                        <StrategyPicker
+                            multi={true}
+                            value={preferences.default_strategy_ids}
+                            onChange={(val) => setPreferences({...preferences, default_strategy_ids: val})}
+                        />
+                        <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: '-1rem 0 0 0' }}>These strategies will be pre-selected on your Performance Dashboard.</p>
 
-            <form onSubmit={handleRestore} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div>
-            <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: '#f8fafc' }}>
-            Select Backup File (.zip)
-            </label>
-            <input
-            type="file"
-            accept=".zip"
-            ref={fileInputRef}
-            onChange={e => setRestoreFile(e.target.files[0])}
-            required
-            style={{ width: '100%', padding: '0.5rem', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#f8fafc' }}
-            />
-            </div>
+                        <div>
+                            <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: '#94a3b8' }}>Live Price Refresh Interval (Seconds)</label>
+                            <input type="number" min="10" max="300" value={preferences.refresh_secs} onChange={e => setPreferences({...preferences, refresh_secs: parseInt(e.target.value)})} style={{ width: '100%', padding: '0.5rem', background: '#0f172a', border: '1px solid #334155', color: '#f8fafc', borderRadius: '4px' }} />
+                        </div>
 
-            <div>
-            <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: '#f8fafc' }}>
-            Confirm Password
-            </label>
-            <input
-            type="password"
-            value={restorePassword}
-            onChange={e => setRestorePassword(e.target.value)}
-            placeholder="Enter your login password to authorize..."
-            required
-            style={{ width: '100%', padding: '0.75rem' }}
-            />
-            </div>
+                        <button type="submit" style={{ background: '#22d3ee', color: '#0f172a', padding: '0.75rem', fontWeight: 'bold', border: 'none', cursor: 'pointer', borderRadius: '4px' }}>Save Preferences</button>
+                    </form>
+                </div>
+            )}
 
-            <button
-            type="submit"
-            disabled={restoring}
-            style={{
-                background: restoring ? '#334155' : '#ef4444',
-                color: '#f8fafc',
-                padding: '1rem',
-                fontWeight: 'bold',
-                border: 'none',
-                cursor: restoring ? 'not-allowed' : 'pointer',
-                borderRadius: '4px',
-                marginTop: '0.5rem'
-            }}
-            >
-            {restoring ? 'Restoring Data...' : 'Overwrite & Restore'}
-            </button>
-            </form>
-            </div>
-        )}
+            {/* DATA TAB */}
+            {activeTab === 'data' && (
+                <>
+                    <div style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
+                        <h3 style={{ marginTop: 0, color: '#f8fafc' }}>Add Currency Pair</h3>
+                        <form onSubmit={handleCreateInstrument} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div style={{ display: 'flex', gap: '1rem' }}>
+                                <div style={{ flex: 1 }}>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Display Symbol</label>
+                                    <input value={newInst.symbol} onChange={e => setNewInst({...newInst, symbol: e.target.value.toUpperCase()})} placeholder="AUD/JPY" required style={{ width: '100%', padding: '0.5rem', background: '#0f172a', border: '1px solid #334155', color: '#f8fafc', borderRadius: '4px' }} />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>API Symbol (yfinance/12Data)</label>
+                                    <input value={newInst.provider_symbol} onChange={e => setNewInst({...newInst, provider_symbol: e.target.value.toUpperCase()})} placeholder="AUDJPY=X" required style={{ width: '100%', padding: '0.5rem', background: '#0f172a', border: '1px solid #334155', color: '#f8fafc', borderRadius: '4px' }} />
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '1rem' }}>
+                                <div style={{ flex: 1 }}>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Quote Currency</label>
+                                    <input value={newInst.quote_ccy} onChange={e => setNewInst({...newInst, quote_ccy: e.target.value.toUpperCase()})} placeholder="JPY" required style={{ width: '100%', padding: '0.5rem', background: '#0f172a', border: '1px solid #334155', color: '#f8fafc', borderRadius: '4px' }} />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Pip Size</label>
+                                    <input type="number" step="any" value={newInst.pip_size} onChange={e => setNewInst({...newInst, pip_size: e.target.value})} placeholder="0.01" required style={{ width: '100%', padding: '0.5rem', background: '#0f172a', border: '1px solid #334155', color: '#f8fafc', borderRadius: '4px' }} />
+                                </div>
+                            </div>
+                            <button type="submit" style={{ background: '#22d3ee', color: '#0f172a', padding: '0.75rem', fontWeight: 'bold', border: 'none', cursor: 'pointer', borderRadius: '4px', marginTop: '0.5rem' }}>+ Add Instrument</button>
+                        </form>
+                    </div>
+
+                    <div style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '8px' }}>
+                        <h3 style={{ marginTop: 0, color: '#f8fafc' }}>Active Instruments</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem' }}>
+                            {instruments.map(inst => (
+                                <div key={inst.id} style={{ background: '#0f172a', padding: '1rem', borderRadius: '4px', textAlign: 'center', border: '1px solid #334155' }}>
+                                    <div style={{ fontWeight: 'bold', color: '#f8fafc' }}>{inst.symbol}</div>
+                                    <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Pip: {inst.pip_size}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </>
+            )}
+
+            {/* BACKUP TAB */}
+            {activeTab === 'backup' && (
+                <div style={{ background: '#1e293b', padding: '2rem', borderRadius: '8px', borderLeft: '4px solid #3b82f6' }}>
+                    <h3 style={{ margin: '0 0 1rem 0', color: '#f8fafc' }}>Data Portability</h3>
+                    <p style={{ color: '#94a3b8', lineHeight: '1.5', marginBottom: '2rem' }}>Download a full ZIP archive containing all JSON data and image attachments.</p>
+                    <button onClick={handleDownloadBackup} disabled={downloading} style={{ background: downloading ? '#334155' : '#3b82f6', color: '#f8fafc', padding: '1rem 2rem', fontWeight: 'bold', border: 'none', cursor: downloading ? 'not-allowed' : 'pointer', borderRadius: '4px', width: '100%', fontSize: '1.1rem' }}>
+                        {downloading ? 'Compiling Backup...' : '↓ Download Full Backup (.zip)'}
+                    </button>
+
+                    <h3 style={{ margin: '2rem 0 1rem 0', color: '#f8fafc' }}>Export Analytics</h3>
+                    <p style={{ color: '#94a3b8', lineHeight: '1.5', marginBottom: '2rem' }}>Download a flat CSV file of all your trades for Excel/Google Sheets.</p>
+                    <button onClick={() => exportTradesToCSV()} style={{ background: '#10b981', color: '#f8fafc', padding: '1rem 2rem', fontWeight: 'bold', border: 'none', cursor: 'pointer', borderRadius: '4px', width: '100%', fontSize: '1.1rem' }}>
+                        ↓ Export Trades to CSV
+                    </button>
+                </div>
+            )}
+
+            {/* RESTORE TAB */}
+            {activeTab === 'restore' && (
+                <div style={{ background: '#1e293b', padding: '2rem', borderRadius: '8px', borderLeft: '4px solid #ef4444' }}>
+                    <h3 style={{ margin: '0 0 1rem 0', color: '#ef4444' }}>Restore System Data</h3>
+                    <p style={{ color: '#94a3b8', lineHeight: '1.5', marginBottom: '2rem' }}>Uploading a backup ZIP will permanently overwrite your existing journal data. This cannot be undone.</p>
+                    <form onSubmit={handleRestore} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        <div>
+                            <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: '#f8fafc' }}>Select Backup File (.zip)</label>
+                            <input type="file" accept=".zip" ref={fileInputRef} onChange={e => setRestoreFile(e.target.files[0])} required style={{ width: '100%', padding: '0.5rem', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#f8fafc' }} />
+                        </div>
+                        <div>
+                            <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: '#f8fafc' }}>Confirm Password</label>
+                            <input type="password" value={restorePassword} onChange={e => setRestorePassword(e.target.value)} placeholder="Enter password to authorize..." required style={{ width: '100%', padding: '0.75rem', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#f8fafc' }} />
+                        </div>
+                        <button type="submit" disabled={restoring} style={{ background: restoring ? '#334155' : '#ef4444', color: '#f8fafc', padding: '1rem', fontWeight: 'bold', border: 'none', cursor: restoring ? 'not-allowed' : 'pointer', borderRadius: '4px', marginTop: '0.5rem' }}>
+                            {restoring ? 'Restoring Data...' : 'Overwrite & Restore'}
+                        </button>
+                    </form>
+                </div>
+            )}
         </div>
     );
 }
