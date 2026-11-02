@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import ClockIST from './ClockIST';
 import MiniPerformance from './MiniPerformance';
@@ -43,7 +42,6 @@ export default function TopBar() {
         try {
             await api.post(`/alerts/${alertId}/confirm-close`);
             setAlerts(alerts.filter(a => a.id !== alertId));
-            // In a real app, you might want to refresh global state or trigger a toast here
         } catch (err) {
             alert("Failed to confirm trade closure. It may already be closed.");
         }
@@ -52,7 +50,7 @@ export default function TopBar() {
     const newAlertsCount = alerts.filter(a => a.status === 'new').length;
 
     return (
-        <nav style={{
+        <header style={{
             background: '#1e293b',
             padding: '1rem 2rem',
             display: 'flex',
@@ -60,25 +58,11 @@ export default function TopBar() {
             alignItems: 'center',
             borderBottom: '1px solid #334155'
         }}>
-
-        <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
-        <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#22d3ee' }}>Reaper's Journal</h1>
-        <div style={{ display: 'flex', gap: '1.5rem' }}>
-            <Link to="/" style={{ color: '#f8fafc', textDecoration: 'none', fontWeight: 'bold' }}>Dashboard</Link>
-            <Link to="/journal" style={{ color: '#f8fafc', textDecoration: 'none', fontWeight: 'bold' }}>Journal</Link>
-            <Link to="/strategies" style={{ color: '#f8fafc', textDecoration: 'none', fontWeight: 'bold' }}>Strategies</Link>
-            <Link to="/settings" style={{ color: '#f8fafc', textDecoration: 'none', fontWeight: 'bold' }}>Settings</Link>
-            <Link to="/logs" style={{ color: '#f8fafc', textDecoration: 'none', fontWeight: 'bold' }}>Logs</Link>
-            <Link to="/help" style={{ color: '#f8fafc', textDecoration: 'none', fontWeight: 'bold' }}>Help</Link>
-        </div>
-        </div>
-
         <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
         <div style={{ paddingRight: '2rem', borderRight: '1px solid #334155' }}>
         <MiniPerformance />
         </div>
 
-        {/* NEW: Alerts Widget */}
         <div style={{ position: 'relative' }}>
         <button
         onClick={() => setIsAlertsOpen(!isAlertsOpen)}
@@ -163,6 +147,6 @@ export default function TopBar() {
         Logout
         </button>
         </div>
-        </nav>
+        </header>
     );
 }
