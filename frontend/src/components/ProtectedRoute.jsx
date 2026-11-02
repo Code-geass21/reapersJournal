@@ -1,14 +1,8 @@
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
-export default function ProtectedRoute() {
+export default function ProtectedRoute({ children }) {
     const { token } = useAuth();
-
-    // If not authenticated, kick them back to login
-    if (!token) {
-        return <Navigate to="/" replace />;
-    }
-
-    // Otherwise, render the child route
-    return <Outlet />;
+    if (!token) return <Navigate to="/login" replace />;
+    return children;
 }

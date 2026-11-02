@@ -1,45 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
 
-export default function StrategyPicker({ value, onChange, multi = false }) {
+export default function StrategyPicker({ selectedIds, onChange }) {
     const [strategies, setStrategies] = useState([]);
 
     useEffect(() => {
-        const fetchStrategies = async () => {
-            try {
-                const res = await api.get('/strategies/');
-                setStrategies(res.data);
-            } catch (err) {
-                console.error("Failed to load strategies for picker", err);
-            }
-        };
-        fetchStrategies();
+        api.get('/strategies/').then(res => setStrategies(res.data)).catch(console.error);
     }, []);
 
+    const toggleStrategy = (id) => {
+        if (selectedIds.includes(id)) {
+            onChange(selectedIds.filter(sId => sId !== id));
+        } else {
+            onChange([...selectedIds, id]);
+        }
+    };
+
     return (
-        <div>
-        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>
-        {multi ? 'Filter by Strategies' : 'Select Strategy'}
-        </label>
-        <select
-        multiple={multi}
-        value={value}
-        onChange={(e) => {
-            if (multi) {
-                const selected = Array.from(e.target.selectedOptions, option => option.value);
-                onChange(selected);
-            } else {
-                onChange(e.target.value);
-            }
-        }}
-        style={{ width: '100%', padding: '0.5rem', background: '#0f172a', border: '1px solid #334155', color: '#f8fafc', borderRadius: '4px', minHeight: multi ? '80px' : 'auto' }}
-        required={!multi}
-        >
-        {!multi && <option value="">-- Select --</option>}
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         {strategies.map(s => (
-            <option key={s.id} value={s.id}>{s.name}</option>
+            <button
+            key={s.id}
+            onClick={() => toggleStrategy(s.id)}
+            type="button"
+            style={{
+                background: selectedIds.includes(s.id) ? '#22d3ee' : '#334155',
+                              color: selectedIds.includes(s.id) ? '#0f172a' : '#f8fafc',
+                              border: 'none', padding: '0.25rem 0.75rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'
+            }}
+            >
+            {s.name}
+            </button>
         ))}
-        </select>
         </div>
     );
 }

@@ -5,13 +5,11 @@ import TopBar from './TopBar';
 
 export default function Layout() {
     return (
-        <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-color, #0f172a)' }}>
+        <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
         <Sidebar />
-
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <TopBar />
-        <main style={{ flex: 1, overflowY: 'auto' }}>
-        {/* The current route's page will render inside this Outlet */}
+        <main style={{ flex: 1, overflowY: 'auto', backgroundColor: 'var(--bg-color)' }}>
         <Outlet />
         </main>
         </div>
