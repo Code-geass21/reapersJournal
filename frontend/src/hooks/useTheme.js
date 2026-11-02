@@ -2,18 +2,19 @@ import { useState, useEffect } from 'react';
 import api from '../utils/api';
 
 export function useTheme() {
-    const [theme, setTheme] = useState('dark'); // Default to dark
+    const [theme, setTheme] = useState('dark');
 
     useEffect(() => {
         const fetchTheme = async () => {
             try {
-                if (!localStorage.getItem('token')) return;
-                const res = await api.get('/settings/preferences');
-                const userTheme = res.data.theme || 'dark';
-                setTheme(userTheme);
-                document.documentElement.setAttribute('data-theme', userTheme);
-            } catch (err) {
-                console.error("Failed to fetch user theme preference", err);
+                if (localStorage.getItem('token')) {
+                    const res = await api.get('/settings/preferences');
+                    const userTheme = res.data.theme || 'dark';
+                    setTheme(userTheme);
+                    document.documentElement.setAttribute('data-theme', userTheme);
+                }
+            } catch (e) {
+                console.error('Failed to load theme preference', e);
             }
         };
         fetchTheme();
@@ -23,12 +24,10 @@ export function useTheme() {
         const newTheme = theme === 'dark' ? 'light' : 'dark';
         setTheme(newTheme);
         document.documentElement.setAttribute('data-theme', newTheme);
-
         try {
-            // Persist to database
             await api.put('/settings/preferences', { theme: newTheme });
-        } catch (err) {
-            console.error("Failed to save theme to backend", err);
+        } catch (e) {
+            console.error('Failed to save theme', e);
         }
     };
 
