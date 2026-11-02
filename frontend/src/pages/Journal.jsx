@@ -11,7 +11,7 @@ export default function Journal() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-    const { liveData } = useLivePrices(30);
+    const { liveData } = useLivePrices(3);
 
     useEffect(() => {
         const fetchData = async () => {

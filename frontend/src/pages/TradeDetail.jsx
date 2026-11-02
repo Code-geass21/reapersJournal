@@ -13,7 +13,7 @@ export default function TradeDetail() {
     const [attachments, setAttachments] = useState([]); // <-- NEW: State for attachments
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const { liveData } = useLivePrices(30);
+    const { liveData } = useLivePrices(3);
     const tradeLiveData = liveData[id];
 
     // Trade Closure State

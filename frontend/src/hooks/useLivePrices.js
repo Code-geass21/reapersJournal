@@ -1,45 +1,44 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
 
-export function useLivePrices(refreshIntervalSecs = 10) {
-    const [liveData, setLiveData] = useState({}); // Keyed by trade_id
+export function useLivePrices(refreshIntervalSecs = 3) {
+    const [liveData, setLiveData] = useState({});
     const [error, setError] = useState(null);
+
+    const fetchPrices = useCallback(async () => {
+        try {
+            if (!localStorage.getItem('token')) return;
+
+            // This only hits the local Postgres cache, so fast polling is virtually free
+            const res = await api.get('/prices/open');
+            const dataDict = {};
+            res.data.forEach(item => {
+                dataDict[item.trade_id] = item;
+            });
+            setLiveData(dataDict);
+            setError(null);
+        } catch (err) {
+            console.error("Failed to fetch live prices", err);
+            setError(err);
+        }
+    }, []);
 
     useEffect(() => {
         let isMounted = true;
 
-        const fetchPrices = async () => {
-            try {
-                // Don't fetch if not logged in
-                if (!localStorage.getItem('token')) return;
-
-                const res = await api.get('/prices/open');
-                if (isMounted) {
-                    // Convert array to dictionary keyed by trade_id for O(1) lookup in UI
-                    const dataDict = {};
-                    res.data.forEach(item => {
-                        dataDict[item.trade_id] = item;
-                    });
-                    setLiveData(dataDict);
-                    setError(null);
-                }
-            } catch (err) {
-                if (isMounted) {
-                    console.error("Failed to fetch live prices", err);
-                    setError(err);
-                }
-            }
-        };
-
-        // Fetch immediately, then loop
+        // Fetch instantly on mount
         fetchPrices();
-        const intervalId = setInterval(fetchPrices, refreshIntervalSecs * 1000);
 
-        return () => {
-            isMounted = false;
-            clearInterval(intervalId);
-        };
-    }, [refreshIntervalSecs]);
+        // Setup aggressive local polling loop
+        const intervalId = setInterval(() => {
+            if (isMounted) fetchPrices();
+        }, refreshIntervalSecs * 1000);
 
-    return { liveData, error };
+            return () => {
+                isMounted = false;
+                clearInterval(intervalId);
+            };
+    }, [fetchPrices, refreshIntervalSecs]);
+
+    return { liveData, error, forceRefresh: fetchPrices };
 }
