@@ -1,4 +1,6 @@
 import api from './api';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 export const exportTradesToCSV = async (strategyId = null) => {
     try {
@@ -55,5 +57,52 @@ export const exportTradesToCSV = async (strategyId = null) => {
     } catch (err) {
         console.error("Export failed", err);
         alert("Failed to export data.");
+    }
+};
+
+
+export const exportTradesToPDF = async (strategyId = null) => {
+    try {
+        let url = '/trades/';
+        if (strategyId) url += `?strategy_id=${strategyId}`;
+
+        const res = await api.get(url);
+        const trades = res.data;
+
+        if (!trades || trades.length === 0) {
+            alert("No trades to export.");
+            return;
+        }
+
+        const doc = new jsPDF('landscape');
+        doc.text("Reaper's Journal - Trade Export", 14, 15);
+
+        const tableColumn = ["ID", "Status", "Pair", "Dir", "Entry", "Exit", "P&L", "R-Mult", "Emotion", "Date"];
+        const tableRows = [];
+
+        trades.forEach(t => {
+            const tradeData = [
+                t.id, t.status, t.instrument_id, t.direction,
+                t.entry_price, t.exit_price || '—',
+                t.pnl_realized !== null ? `$${t.pnl_realized}` : '—',
+                t.r_multiple || '—', t.emotion || '—',
+                new Date(t.opened_at).toLocaleDateString()
+            ];
+            tableRows.push(tradeData);
+        });
+
+        doc.autoTable({
+            head: [tableColumn],
+            body: tableRows,
+            startY: 20,
+            theme: 'grid',
+            styles: { fontSize: 8 },
+            headStyles: { fillColor: [34, 211, 238] }
+        });
+
+        doc.save(`journal_export_${new Date().getTime()}.pdf`);
+    } catch (err) {
+        console.error("PDF Export failed", err);
+        alert("Failed to export PDF.");
     }
 };

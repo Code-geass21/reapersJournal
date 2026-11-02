@@ -6,6 +6,21 @@ from app.models.user import User
 from app.schemas.user import UserOut
 from app.services import user_service, attachment_service
 from pydantic import BaseModel
+from typing import List
+from app.api.deps import get_admin_user
+from app.utils.security import get_password_hash
+from fastapi import HTTPException
+
+
+class AdminUserCreate(BaseModel):
+    username: str
+    email: str
+    password: str
+    role: str = "user"
+
+class AdminUserUpdate(BaseModel):
+    is_active: bool
+    role: str
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -57,3 +72,50 @@ def upload_my_avatar(
     db.commit()
     db.refresh(current_user)
     return current_user
+
+@router.get("/", response_model=List[UserOut])
+def get_all_users(db: Session = Depends(get_db), admin: User = Depends(get_admin_user)):
+    """Admin only: List all users on the platform."""
+    return db.query(User).order_by(User.id.asc()).all()
+
+@router.post("/", response_model=UserOut)
+def create_user_as_admin(
+    user_in: AdminUserCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user)
+):
+    """Admin only: Manually provision a new user."""
+    if db.query(User).filter((User.username == user_in.username) | (User.email == user_in.email)).first():
+        raise HTTPException(status_code=400, detail="Username or email already exists")
+
+    new_user = User(
+        username=user_in.username,
+        email=user_in.email,
+        password_hash=get_password_hash(user_in.password),
+        role=user_in.role
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+@router.put("/{target_user_id}", response_model=UserOut)
+def update_user_status(
+    target_user_id: int,
+    update_data: AdminUserUpdate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user)
+):
+    """Admin only: Activate/deactivate or change roles of users."""
+    if target_user_id == admin.id and not update_data.is_active:
+        raise HTTPException(status_code=400, detail="You cannot disable your own admin account")
+
+    user = db.query(User).filter(User.id == target_user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.is_active = update_data.is_active
+    user.role = update_data.role
+    db.commit()
+    db.refresh(user)
+    return user

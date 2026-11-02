@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../utils/api';
-import { exportTradesToCSV } from '../utils/export';
+import { exportTradesToCSV, exportTradesToPDF } from '../utils/export';
 import StrategyPicker from '../components/StrategyPicker';
 import { useAuth } from '../hooks/useAuth';
 
@@ -9,6 +9,9 @@ export default function Settings() {
     const [instruments, setInstruments] = useState([]);
     const [loading, setLoading] = useState(true);
     const { logout } = useAuth();
+    // Admin Accounts State
+    const [allUsers, setAllUsers] = useState([]);
+    const [userRole, setUserRole] = useState('user');
 
     // Profile States
     const [profile, setProfile] = useState({ display_name: '' });
@@ -45,6 +48,14 @@ export default function Settings() {
                 ]);
                 setInstruments(instRes.data);
                 setProfile({ display_name: userRes.data.display_name || '' });
+                setUserRole(userRes.data.role);
+
+                // If admin, fetch all users
+                if (userRes.data.role === 'admin') {
+                    const allUsersRes = await api.get('/users/');
+                    setAllUsers(allUsersRes.data);
+                }
+
                 setPreferences(prefRes.data);
             } catch (err) {
                 console.error('Failed to load settings data', err);
@@ -181,6 +192,12 @@ export default function Settings() {
                 <TabButton id="profile" label="Profile" />
                 <TabButton id="preferences" label="Preferences" />
                 <TabButton id="data" label="Instruments" />
+
+                {/* ADMIN ACCOUNTS TAB */}
+                {userRole === 'admin' && (
+                    <TabButton id="accounts" label="Accounts" />
+                )}
+
                 <TabButton id="backup" label="Backup/Export" />
                 <TabButton id="restore" label="Restore Data" isDanger={true} />
             </div>
@@ -299,6 +316,9 @@ export default function Settings() {
                     <button onClick={() => exportTradesToCSV()} style={{ background: '#10b981', color: '#f8fafc', padding: '1rem 2rem', fontWeight: 'bold', border: 'none', cursor: 'pointer', borderRadius: '4px', width: '100%', fontSize: '1.1rem' }}>
                         ↓ Export Trades to CSV
                     </button>
+                    <button onClick={() => exportTradesToPDF()} style={{ background: '#ef4444', color: '#f8fafc', padding: '1rem 2rem', fontWeight: 'bold', border: 'none', cursor: 'pointer', borderRadius: '4px', width: '100%', fontSize: '1.1rem', marginTop: '1rem' }}>
+                    ↓ Export Trades to PDF
+                    </button>
                 </div>
             )}
 
@@ -322,6 +342,34 @@ export default function Settings() {
                     </form>
                 </div>
             )}
+            {/* ACCOUNTS TAB (ADMIN ONLY) */}
+    {activeTab === 'accounts' && userRole === 'admin' && (
+        <div style={{ background: '#1e293b', padding: '2rem', borderRadius: '8px' }}>
+            <h3 style={{ marginTop: 0, color: '#f8fafc' }}>System Users</h3>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#f8fafc' }}>
+                <thead>
+                    <tr style={{ borderBottom: '1px solid #334155' }}>
+                        <th style={{ padding: '1rem 0', color: '#94a3b8' }}>User</th>
+                        <th style={{ padding: '1rem 0', color: '#94a3b8' }}>Role</th>
+                        <th style={{ padding: '1rem 0', color: '#94a3b8' }}>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {allUsers.map(u => (
+                        <tr key={u.id} style={{ borderBottom: '1px solid #334155' }}>
+                            <td style={{ padding: '1rem 0' }}>{u.username} <br/><span style={{ fontSize: '0.75rem', color: '#94a3b8'}}>{u.email}</span></td>
+                            <td style={{ padding: '1rem 0' }}>
+                                <span style={{ background: u.role === 'admin' ? '#3b82f620' : '#334155', color: u.role === 'admin' ? '#3b82f6' : '#cbd5e1', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', textTransform: 'uppercase' }}>{u.role}</span>
+                            </td>
+                            <td style={{ padding: '1rem 0' }}>
+                                <span style={{ color: u.is_active ? '#22c55e' : '#ef4444' }}>{u.is_active ? 'Active' : 'Disabled'}</span>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    )}
         </div>
     );
 }
