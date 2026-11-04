@@ -51,8 +51,9 @@ def fetch_upcoming_news():
         # Sort by time
         upcoming.sort(key=lambda x: x['time'])
 
-        # Update the cache
-        _news_cache = upcoming[:5]
+        # --- BUG 10 FIX: Stop aggressively truncating to 5 events ---
+        # Cache and return all valid upcoming events to seed the DB properly
+        _news_cache = upcoming
         _last_fetch_time = now
 
         return _news_cache

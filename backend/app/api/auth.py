@@ -11,18 +11,19 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 
 @router.post("/register", response_model=UserOut)
 def register(user_in: UserCreate, db: Session = Depends(get_db)):
+    is_first_user = db.query(User).count() == 0
+    if not is_first_user:
+        raise HTTPException(status_code=403, detail="Open registration is disabled. Contact an administrator.")
+
     if db.query(User).filter(User.username == user_in.username).first() or \
        db.query(User).filter(User.email == user_in.email).first():
         raise HTTPException(status_code=400, detail="Username or email already registered")
-
-    is_first_user = db.query(User).count() == 0
-    role = "admin" if is_first_user else "user"
 
     new_user = User(
         username=user_in.username,
         email=user_in.email,
         password_hash=get_password_hash(user_in.password),
-        role=role
+        role="admin"
     )
     db.add(new_user)
     db.commit()
@@ -38,6 +39,9 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account is disabled")
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(

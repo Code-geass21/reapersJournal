@@ -1,4 +1,5 @@
 import logging
+import hashlib # ADDED: For secure hashing
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
@@ -34,8 +35,9 @@ def run():
 
         upsert_count = 0
         for event in events:
-            # Generate a deterministic UID: time + currency + title
-            source_uid = f"{event['time']}_{event['country']}_{event['title']}"
+            # --- BUG 10 FIX: Hash the UID to prevent Postgres VARCHAR overflow ---
+            raw_uid = f"{event['time']}_{event['country']}_{event['title']}"
+            source_uid = hashlib.sha256(raw_uid.encode('utf-8')).hexdigest()
 
             # Parse ISO string "YYYY-MM-DDTHH:MM:SSZ" to UTC datetime
             dt = datetime.fromisoformat(event['time'].replace('Z', '+00:00'))

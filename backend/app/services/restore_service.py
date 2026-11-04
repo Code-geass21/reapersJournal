@@ -5,6 +5,9 @@ import shutil
 import logging
 from sqlalchemy.orm import Session
 from app.utils.table_registry import BACKUP_REGISTRY
+# --- BUG 17 FIX: Import models required for Avatar profile remapping ---
+from app.models.user import User
+from app.models.attachment import Attachment
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +35,15 @@ def process_restore(db: Session, user_id: int, zip_filepath: str):
             # Fetch the objects first, then delete them to avoid the .join() error
             objects_to_delete = filtered_query.all()
             for obj in objects_to_delete:
+                # --- BUG 17 FIX: Delete physical files before dropping the DB row to prevent orphans ---
+                if table_def["name"] == "attachments":
+                    file_path = os.path.join(UPLOAD_DIR, getattr(obj, 'path', ''))
+                    if getattr(obj, 'path', None) and os.path.exists(file_path):
+                        try:
+                            os.remove(file_path)
+                        except Exception as e:
+                            logger.warning(f"Could not remove old file {file_path}: {e}")
+
                 db.delete(obj)
 
         # 3. Insert all data forwards with ID mapping
@@ -72,10 +84,13 @@ def process_restore(db: Session, user_id: int, zip_filepath: str):
                         if 'trade_id' in row_data and row_data['trade_id'] in id_map["trades"]:
                             row_data['trade_id'] = id_map["trades"][row_data['trade_id']]
 
-                        # Map attachment owner_id for restored screenshots
-                        if table_def["name"] == "attachments" and row_data.get("owner_type") == "trade":
-                            if 'owner_id' in row_data and row_data['owner_id'] in id_map["trades"]:
-                                row_data['owner_id'] = id_map["trades"][row_data['owner_id']]
+                        # --- BUG 17 FIX: Remap ownership of both screenshots and avatars ---
+                        if table_def["name"] == "attachments":
+                            if row_data.get("owner_type") == "trade":
+                                if 'owner_id' in row_data and row_data['owner_id'] in id_map["trades"]:
+                                    row_data['owner_id'] = id_map["trades"][row_data['owner_id']]
+                            elif row_data.get("owner_type") == "avatar":
+                                row_data['owner_id'] = user_id
 
                         # For instruments, we check the symbol string instead of trusting the old ID
                         if table_def["name"] == "instruments":
@@ -100,6 +115,15 @@ def process_restore(db: Session, user_id: int, zip_filepath: str):
                         # Store the mapping so child tables can find it
                         if old_id and table_def["name"] in id_map:
                             id_map[table_def["name"]][old_id] = new_record.id
+
+        # --- BUG 17 FIX: Sync the User's profile DB row to point to the newly restored Avatar file ---
+        user = db.query(User).filter(User.id == user_id).first()
+        if user:
+            latest_avatar = db.query(Attachment).filter(
+                Attachment.user_id == user_id,
+                Attachment.owner_type == 'avatar'
+            ).order_by(Attachment.created_at.desc()).first()
+            user.avatar_attachment_id = latest_avatar.id if latest_avatar else None
 
         # 4. Commit EVERYTHING safely in one transaction
         db.commit()

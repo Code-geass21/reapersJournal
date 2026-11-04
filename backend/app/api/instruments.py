@@ -4,7 +4,7 @@ from typing import List
 from app.database import get_db
 from app.models.instrument import Instrument, Market
 from app.schemas.instrument import InstrumentOut, InstrumentCreate
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_admin_user # ADDED: get_admin_user
 from app.models.user import User
 
 router = APIRouter(prefix="/instruments", tags=["Instruments"])
@@ -24,7 +24,7 @@ def get_instruments(
 def create_instrument(
     instrument_in: InstrumentCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    admin: User = Depends(get_admin_user) # BUG 14 FIX: Restrict to admins
 ):
     # Verify the market exists
     market = db.query(Market).filter(Market.code == instrument_in.market_code).first()

@@ -4,6 +4,7 @@ from app.database import SessionLocal
 from app.models.trade import Trade
 from app.models.instrument import Instrument
 from app.models.price import PriceCache
+from app.models.alert import Alert
 from app.services import alert_service
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,19 @@ def run():
     """
     db: Session = SessionLocal()
     try:
+        # --- BUG 6 FIX: Auto-dismiss lingering SL/TP alerts for trades that are no longer open ---
+        lingering_alerts = db.query(Alert).filter(
+            Alert.status.in_(['new', 'seen']),
+            Alert.kind.in_(['sl_hit', 'tp_hit']),
+            ~Alert.trade_id.in_(
+                db.query(Trade.id).filter(Trade.status == 'open')
+            )
+        ).update({"status": "dismissed"}, synchronize_session=False)
+
+        if lingering_alerts > 0:
+            logger.info(f"Auto-dismissed {lingering_alerts} lingering alerts for closed trades.")
+            db.commit()
+
         # Fetch open trades that have an active SL or TP
         open_trades = db.query(Trade, Instrument).join(
             Instrument, Trade.instrument_id == Instrument.id
@@ -53,6 +67,8 @@ def run():
 
         if alerts_created > 0:
             logger.info(f"Generated {alerts_created} new SL/TP alerts.")
+
+        db.commit()
 
     except Exception as e:
         db.rollback()

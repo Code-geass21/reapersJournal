@@ -9,12 +9,12 @@ def create_alert(db: Session, user_id: int, kind: str, message: str, trade_id: i
     Creates an actionable alert for the user. Returns True if created, False if a duplicate is already pending.
     """
     try:
-        # Prevent spamming the same alert if the user hasn't dismissed the previous one
         if trade_id:
+            # --- BUG 6 FIX: Prevent spamming by checking ALL statuses ---
+            # If the user already dismissed or actioned it, do not recreate it.
             existing = db.query(Alert).filter(
                 Alert.trade_id == trade_id,
-                Alert.kind == kind,
-                Alert.status.in_(['new', 'seen'])
+                Alert.kind == kind
             ).first()
 
             if existing:
