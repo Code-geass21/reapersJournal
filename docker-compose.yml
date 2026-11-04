@@ -14,7 +14,6 @@ services:
       - pgdata:/var/lib/postgresql/data
     expose:
       - "5432"
-    # ADD THIS BLOCK:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -30,6 +29,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
@@ -47,10 +51,9 @@ services:
       dockerfile: ./backend/Dockerfile
     container_name: rj_worker
     restart: always
-    # Shares the same Python code as backend, runs a different entry point
     command: ["python", "-m", "app.worker"]
     depends_on:
-      db:
+      backend:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
@@ -68,8 +71,6 @@ services:
     restart: always
     environment:
       TZ: ${TZ}
-    # In production, this might just build static files,
-    # but as a distinct service, we'll run Vite's preview or dev server
     expose:
       - "5173"
 
@@ -79,7 +80,6 @@ services:
     container_name: rj_nginx
     restart: always
     ports:
-      # Binds to LAN via the port specified in .env, defaulting to 54311
       - "${PUBLIC_PORT:-54311}:80"
     depends_on:
       - backend

@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
-from datetime import datetime
+from datetime import datetime, timezone
 
-from app.models.trade import Trade, TradeConditionCheck
+from app.models.trade import Trade, TradeConditionCheck, TradeExecution
 from app.models.instrument import Instrument
 from app.models.strategy import StrategyRule
 from app.schemas.trade import TradeCreate, TradeUpdate
@@ -36,7 +36,7 @@ def _evaluate_rule_violations(db: Session, strategy_id: int, trade_in: TradeCrea
     return violations
 
 def create_trade(db: Session, user_id: int, trade_in: TradeCreate) -> Trade:
-    trade_data = trade_in.model_dump(exclude={"condition_checks"})
+    trade_data = trade_in.model_dump(exclude={"condition_checks", "initial_execution"})
     new_trade = Trade(**trade_data, user_id=user_id)
 
     # Run the rule engine
@@ -45,6 +45,21 @@ def create_trade(db: Session, user_id: int, trade_in: TradeCreate) -> Trade:
 
     db.add(new_trade)
     db.flush() # Flush to get the new_trade.id
+
+    # CREATE the initial TradeExecution
+    if trade_in.initial_execution:
+        exec_data = trade_in.initial_execution.model_dump()
+        new_execution = TradeExecution(**exec_data, trade_id=new_trade.id)
+    else:
+        # Fallback if no explicit execution payload is sent
+        new_execution = TradeExecution(
+            trade_id=new_trade.id,
+            execution_type='entry',
+            price=trade_in.entry_price,
+            size=trade_in.size,
+            executed_at=datetime.now(timezone.utc)
+        )
+    db.add(new_execution)
 
     # Save the manual condition checks
     for check_data in trade_in.condition_checks:
