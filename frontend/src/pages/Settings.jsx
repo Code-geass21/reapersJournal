@@ -242,8 +242,7 @@ export default function Settings() {
                     <form onSubmit={handleUpdatePreferences} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
                         <StrategyPicker
-                            multi={true}
-                            value={preferences.default_strategy_ids}
+                            selectedIds={preferences.default_strategy_ids || []}
                             onChange={(val) => setPreferences({...preferences, default_strategy_ids: val})}
                         />
                         <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: '-1rem 0 0 0' }}>These strategies will be pre-selected on your Performance Dashboard.</p>

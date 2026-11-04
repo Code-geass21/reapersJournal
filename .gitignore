@@ -3,6 +3,7 @@ reapersJournal_architecture.md
 PLAN.md
 dump.py
 project_dump.txt
+reapers_journal_status.xlsx
 
 # Python / FastAPI (Backend)
 __pycache__/
