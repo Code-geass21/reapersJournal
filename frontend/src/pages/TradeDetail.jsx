@@ -10,7 +10,7 @@ export default function TradeDetail() {
     const [strategy, setStrategy] = useState(null);
     const [instrument, setInstrument] = useState(null);
     const [rules, setRules] = useState([]);
-    const [attachments, setAttachments] = useState([]); // <-- NEW: State for attachments
+    const [attachments, setAttachments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const { liveData } = useLivePrices(3);
@@ -38,13 +38,13 @@ export default function TradeDetail() {
                 api.get(`/strategies/`),
                                                                                api.get(`/instruments/`),
                                                                                api.get(`/strategies/${t.strategy_id}/rules`),
-                                                                               api.get(`/attachments/trade/${id}`) // <-- NEW: Fetch attachments
+                                                                               api.get(`/attachments/trade/${id}`)
             ]);
 
             setStrategy(stratRes.data.find(s => s.id === t.strategy_id));
             setInstrument(instRes.data.find(i => i.id === t.instrument_id));
             setRules(rulesRes.data);
-            setAttachments(attachRes.data); // <-- NEW: Set attachments
+            setAttachments(attachRes.data);
 
         } catch (err) {
             setError('Failed to load trade details.');
@@ -81,7 +81,6 @@ export default function TradeDetail() {
         }
     };
 
-    // <-- NEW: Handle File Upload
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -103,11 +102,10 @@ export default function TradeDetail() {
             alert(err.response?.data?.detail || 'Upload failed');
         } finally {
             setUploading(false);
-            e.target.value = ''; // Reset input
+            e.target.value = '';
         }
     };
 
-    // <-- NEW: Handle File Deletion
     const handleDeleteAttachment = async (attachmentId) => {
         if (!window.confirm("Delete this screenshot?")) return;
         try {
@@ -123,6 +121,7 @@ export default function TradeDetail() {
     if (!trade) return null;
 
     const isLong = trade.direction === 'long';
+    const hasViolations = trade.rule_violations && Object.keys(trade.rule_violations).length > 0;
 
     return (
         <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
@@ -142,16 +141,13 @@ export default function TradeDetail() {
         {trade.status}
         </span>
 
-        {/* ADD THE BADGE HERE */}
         {trade.status === 'open' && (
             <LivePriceBadge liveData={tradeLiveData} isLong={isLong} />
         )}
-
         </h2>
         <div style={{ color: '#94a3b8' }}>{strategy?.name} • Opened: {new Date(trade.opened_at).toLocaleString()}</div>
         </div>
 
-        {/* P&L Display (If Closed) */}
         {trade.status === 'closed' && (
             <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: '0.875rem', color: '#94a3b8' }}>Realized P&L</div>
@@ -184,6 +180,20 @@ export default function TradeDetail() {
         <div style={{ fontSize: '1.125rem', color: '#f8fafc' }}>{trade.take_profit || '—'}</div>
         </div>
         </div>
+
+        {/* NEW: Discipline & Violations Warning Box */}
+        {hasViolations && (
+            <div style={{ marginBottom: '2rem', padding: '1.5rem', background: '#451a1a', borderRadius: '8px', borderLeft: '4px solid #ef4444' }}>
+            <h3 style={{ margin: '0 0 1rem 0', color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            ⚠️ Strategy Rule Violations
+            </h3>
+            <ul style={{ margin: 0, paddingLeft: '1.5rem', color: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {Object.entries(trade.rule_violations).map(([key, message]) => (
+                <li key={key}>{message}</li>
+            ))}
+            </ul>
+            </div>
+        )}
 
         {/* Trade Closure Action */}
         {trade.status === 'open' && (
@@ -278,7 +288,7 @@ export default function TradeDetail() {
         )}
         </div>
 
-        {/* <-- FIX: Authenticated Screenshots Section --> */}
+        {/* Screenshots Section */}
         <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <h3 style={{ margin: 0 }}>Screenshots</h3>
@@ -325,11 +335,9 @@ function AuthImage({ attachmentId, onDelete }) {
     useEffect(() => {
         const fetchImage = async () => {
             try {
-                // Request the file as a Blob (binary data)
                 const response = await api.get(`/attachments/${attachmentId}/file`, {
                     responseType: 'blob'
                 });
-                // Create a local URL pointing to this blob
                 const url = URL.createObjectURL(response.data);
                 setImgSrc(url);
             } catch (error) {
@@ -340,7 +348,6 @@ function AuthImage({ attachmentId, onDelete }) {
         };
         fetchImage();
 
-        // Cleanup the object URL to avoid memory leaks when unmounted
         return () => {
             if (imgSrc) URL.revokeObjectURL(imgSrc);
         };
@@ -354,8 +361,8 @@ function AuthImage({ attachmentId, onDelete }) {
         <img
         src={imgSrc}
         alt="Trade setup"
-        style={{ width: '100%', height: 'auto', borderRadius: '4px', display: 'block' }}
-        onClick={() => window.open(imgSrc, '_blank')} // Click to open full size
+        style={{ width: '100%', height: 'auto', borderRadius: '4px', display: 'block', cursor: 'pointer' }}
+        onClick={() => window.open(imgSrc, '_blank')}
         />
         <button
         onClick={onDelete}
