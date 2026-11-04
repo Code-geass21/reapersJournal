@@ -148,8 +148,9 @@ export default function TradeDetail() {
         <div style={{ color: '#94a3b8' }}>{strategy?.name} • Opened: {new Date(trade.opened_at).toLocaleString()}</div>
         </div>
 
-        {trade.status === 'closed' && (
-            <div style={{ textAlign: 'right' }}>
+        <div style={{ textAlign: 'right' }}>
+        {trade.status === 'closed' ? (
+            <>
             <div style={{ fontSize: '0.875rem', color: '#94a3b8' }}>Realized P&L</div>
             <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: trade.pnl_realized >= 0 ? '#22c55e' : '#ef4444' }}>
             {trade.pnl_realized > 0 ? '+' : ''}{trade.pnl_realized}
@@ -157,8 +158,16 @@ export default function TradeDetail() {
             {trade.r_multiple && (
                 <div style={{ fontSize: '0.875rem', color: '#cbd5e1' }}>{trade.r_multiple} R</div>
             )}
-            </div>
+            </>
+        ) : (
+            <Link
+            to={`/journal/${trade.id}/edit`}
+            style={{ display: 'inline-block', background: '#334155', color: '#f8fafc', padding: '0.5rem 1rem', textDecoration: 'none', borderRadius: '4px', fontSize: '0.875rem' }}
+            >
+            Edit Trade
+            </Link>
         )}
+        </div>
         </div>
 
         {/* Core Metrics Grid */}
@@ -181,7 +190,7 @@ export default function TradeDetail() {
         </div>
         </div>
 
-        {/* NEW: Discipline & Violations Warning Box */}
+        {/* Discipline & Violations Warning Box */}
         {hasViolations && (
             <div style={{ marginBottom: '2rem', padding: '1.5rem', background: '#451a1a', borderRadius: '8px', borderLeft: '4px solid #ef4444' }}>
             <h3 style={{ margin: '0 0 1rem 0', color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

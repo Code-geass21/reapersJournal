@@ -6,7 +6,7 @@ import MarketPicker from '../components/MarketPicker';
 
 export default function TradeForm() {
     const navigate = useNavigate();
-    const { id } = useParams(); // If id exists, it's edit mode
+    const { id } = useParams();
     const [strategies, setStrategies] = useState([]);
     const [instruments, setInstruments] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -32,7 +32,7 @@ export default function TradeForm() {
             try {
                 const [stratRes, instRes] = await Promise.all([
                     api.get('/strategies/'),
-                    api.get('/instruments/')
+                                                              api.get('/instruments/')
                 ]);
                 setStrategies(stratRes.data);
                 setInstruments(instRes.data);
@@ -40,17 +40,22 @@ export default function TradeForm() {
                 if (id) {
                     const tradeRes = await api.get(`/trades/${id}`);
                     const t = tradeRes.data;
-                    setTrade({
-                        ...t,
-                        tags: t.tags ? t.tags.join(', ') : '',
-                        stop_loss: t.stop_loss || '',
-                        take_profit: t.take_profit || '',
-                        notes: t.notes || '',
-                        emotion: t.emotion || ''
-                    });
-                    setConditionChecks(t.condition_checks || []);
+
+                    // Look up the market based on the instrument_id
+                    const inst = instRes.data.find(i => i.id === t.instrument_id);
+                    const marketCode = inst ? inst.market_code : 'FOREX';
+
+    setTrade({
+        ...t,
+        market: marketCode,
+        tags: t.tags ? t.tags.join(', ') : '',
+             stop_loss: t.stop_loss || '',
+             take_profit: t.take_profit || '',
+             notes: t.notes || '',
+             emotion: t.emotion || ''
+    });
+    setConditionChecks(t.condition_checks || []);
                 } else {
-                    // Set defaults for new trade
                     if (stratRes.data.length > 0) {
                         setTrade(prev => ({ ...prev, strategy_id: stratRes.data[0].id }));
                     }
@@ -102,107 +107,107 @@ export default function TradeForm() {
 
     return (
         <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
-            <h2 style={{ marginBottom: '2rem' }}>{id ? 'Edit Trade' : 'Log New Trade'}</h2>
+        <h2 style={{ marginBottom: '2rem' }}>{id ? 'Edit Trade' : 'Log New Trade'}</h2>
 
-            <form onSubmit={handleSubmit} style={{ background: '#1e293b', padding: '2rem', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                    <div style={{ flex: 1 }}>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Market</label>
-                        <MarketPicker value={trade.market} onChange={val => setTrade({ ...trade, market: val })} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Instrument</label>
-                        <select
-                            value={trade.instrument_id}
-                            onChange={e => setTrade({ ...trade, instrument_id: e.target.value })}
-                            style={{ width: '100%', padding: '0.5rem' }}
-                            required
-                        >
-                            {filteredInstruments.map(i => <option key={i.id} value={i.id}>{i.symbol}</option>)}
-                        </select>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Strategy</label>
-                        <select
-                            value={trade.strategy_id}
-                            onChange={e => setTrade({ ...trade, strategy_id: e.target.value })}
-                            style={{ width: '100%', padding: '0.5rem' }}
-                            required
-                        >
-                            {strategies.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
-                    </div>
-                </div>
+        <form onSubmit={handleSubmit} style={{ background: '#1e293b', padding: '2rem', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+        <div style={{ flex: 1 }}>
+        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Market</label>
+        <MarketPicker value={trade.market} onChange={val => setTrade({ ...trade, market: val })} />
+        </div>
+        <div style={{ flex: 1 }}>
+        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Instrument</label>
+        <select
+        value={trade.instrument_id}
+        onChange={e => setTrade({ ...trade, instrument_id: e.target.value })}
+        style={{ width: '100%', padding: '0.5rem' }}
+        required
+        >
+        {filteredInstruments.map(i => <option key={i.id} value={i.id}>{i.symbol}</option>)}
+        </select>
+        </div>
+        <div style={{ flex: 1 }}>
+        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Strategy</label>
+        <select
+        value={trade.strategy_id}
+        onChange={e => setTrade({ ...trade, strategy_id: e.target.value })}
+        style={{ width: '100%', padding: '0.5rem' }}
+        required
+        >
+        {strategies.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+        </div>
+        </div>
 
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                     <div style={{ flex: 1 }}>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Direction</label>
-                        <select
-                            value={trade.direction}
-                            onChange={e => setTrade({ ...trade, direction: e.target.value })}
-                            style={{ width: '100%', padding: '0.5rem' }}
-                        >
-                            <option value="long">Long</option>
-                            <option value="short">Short</option>
-                        </select>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Entry Price</label>
-                        <input type="number" step="any" value={trade.entry_price} onChange={e => setTrade({ ...trade, entry_price: e.target.value })} required style={{ width: '100%', padding: '0.5rem' }} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Position Size (Lots)</label>
-                        <input type="number" step="any" value={trade.size} onChange={e => setTrade({ ...trade, size: e.target.value })} required style={{ width: '100%', padding: '0.5rem' }} />
-                    </div>
-                </div>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+        <div style={{ flex: 1 }}>
+        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Direction</label>
+        <select
+        value={trade.direction}
+        onChange={e => setTrade({ ...trade, direction: e.target.value })}
+        style={{ width: '100%', padding: '0.5rem' }}
+        >
+        <option value="long">Long</option>
+        <option value="short">Short</option>
+        </select>
+        </div>
+        <div style={{ flex: 1 }}>
+        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Entry Price</label>
+        <input type="number" step="any" value={trade.entry_price} onChange={e => setTrade({ ...trade, entry_price: e.target.value })} required style={{ width: '100%', padding: '0.5rem' }} />
+        </div>
+        <div style={{ flex: 1 }}>
+        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Position Size (Lots)</label>
+        <input type="number" step="any" value={trade.size} onChange={e => setTrade({ ...trade, size: e.target.value })} required style={{ width: '100%', padding: '0.5rem' }} />
+        </div>
+        </div>
 
-                 <div style={{ display: 'flex', gap: '1rem' }}>
-                    <div style={{ flex: 1 }}>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Stop Loss</label>
-                        <input type="number" step="any" value={trade.stop_loss} onChange={e => setTrade({ ...trade, stop_loss: e.target.value })} style={{ width: '100%', padding: '0.5rem' }} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Take Profit</label>
-                        <input type="number" step="any" value={trade.take_profit} onChange={e => setTrade({ ...trade, take_profit: e.target.value })} style={{ width: '100%', padding: '0.5rem' }} />
-                    </div>
-                </div>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+        <div style={{ flex: 1 }}>
+        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Stop Loss</label>
+        <input type="number" step="any" value={trade.stop_loss} onChange={e => setTrade({ ...trade, stop_loss: e.target.value })} style={{ width: '100%', padding: '0.5rem' }} />
+        </div>
+        <div style={{ flex: 1 }}>
+        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Take Profit</label>
+        <input type="number" step="any" value={trade.take_profit} onChange={e => setTrade({ ...trade, take_profit: e.target.value })} style={{ width: '100%', padding: '0.5rem' }} />
+        </div>
+        </div>
 
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                    <div style={{ flex: 1 }}>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Tags (comma separated)</label>
-                        <input type="text" value={trade.tags} onChange={e => setTrade({ ...trade, tags: e.target.value })} placeholder="e.g., FOMC, trendline bounce" style={{ width: '100%', padding: '0.5rem' }} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Emotion</label>
-                        <select value={trade.emotion} onChange={e => setTrade({ ...trade, emotion: e.target.value })} style={{ width: '100%', padding: '0.5rem' }}>
-                            <option value="">-- Select --</option>
-                            <option value="calm">Calm / Neutral</option>
-                            <option value="anxious">Anxious</option>
-                            <option value="fomo">FOMO</option>
-                            <option value="overconfident">Overconfident</option>
-                            <option value="frustrated">Frustrated / Revenge</option>
-                        </select>
-                    </div>
-                </div>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+        <div style={{ flex: 1 }}>
+        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Tags (comma separated)</label>
+        <input type="text" value={trade.tags} onChange={e => setTrade({ ...trade, tags: e.target.value })} placeholder="e.g., FOMC, trendline bounce" style={{ width: '100%', padding: '0.5rem' }} />
+        </div>
+        <div style={{ flex: 1 }}>
+        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Emotion</label>
+        <select value={trade.emotion} onChange={e => setTrade({ ...trade, emotion: e.target.value })} style={{ width: '100%', padding: '0.5rem' }}>
+        <option value="">-- Select --</option>
+        <option value="calm">Calm / Neutral</option>
+        <option value="anxious">Anxious</option>
+        <option value="fomo">FOMO</option>
+        <option value="overconfident">Overconfident</option>
+        <option value="frustrated">Frustrated / Revenge</option>
+        </select>
+        </div>
+        </div>
 
-                <div>
-                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Notes</label>
-                    <textarea value={trade.notes} onChange={e => setTrade({ ...trade, notes: e.target.value })} style={{ width: '100%', padding: '0.5rem', minHeight: '100px' }} />
-                </div>
+        <div>
+        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Notes</label>
+        <textarea value={trade.notes} onChange={e => setTrade({ ...trade, notes: e.target.value })} style={{ width: '100%', padding: '0.5rem', minHeight: '100px' }} />
+        </div>
 
-                {!id && (
-                    <ConditionChecklist strategyId={trade.strategy_id} onChecksChange={setConditionChecks} />
-                )}
+        {!id && (
+            <ConditionChecklist strategyId={trade.strategy_id} onChecksChange={setConditionChecks} />
+        )}
 
-                <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                     <button type="submit" style={{ background: '#22d3ee', color: '#0f172a', padding: '0.75rem 1.5rem', fontWeight: 'bold', border: 'none', cursor: 'pointer', borderRadius: '4px' }}>
-                        {id ? 'Update Trade' : 'Log Trade'}
-                    </button>
-                    <button type="button" onClick={() => navigate('/journal')} style={{ background: 'transparent', color: '#94a3b8', padding: '0.75rem 1.5rem', border: '1px solid #334155', cursor: 'pointer', borderRadius: '4px' }}>
-                        Cancel
-                    </button>
-                </div>
-            </form>
+        <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+        <button type="submit" style={{ background: '#22d3ee', color: '#0f172a', padding: '0.75rem 1.5rem', fontWeight: 'bold', border: 'none', cursor: 'pointer', borderRadius: '4px' }}>
+        {id ? 'Update Trade' : 'Log Trade'}
+        </button>
+        <button type="button" onClick={() => navigate('/journal')} style={{ background: 'transparent', color: '#94a3b8', padding: '0.75rem 1.5rem', border: '1px solid #334155', cursor: 'pointer', borderRadius: '4px' }}>
+        Cancel
+        </button>
+        </div>
+        </form>
         </div>
     );
 }

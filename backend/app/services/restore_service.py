@@ -34,10 +34,7 @@ def process_restore(db: Session, user_id: int, zip_filepath: str):
             for obj in objects_to_delete:
                 db.delete(obj)
 
-        db.commit()
-
         # 3. Insert all data forwards with ID mapping
-        # Maps old JSON ID -> New Postgres ID
         id_map = {
             "strategies": {},
             "strategy_rules": {},
@@ -75,6 +72,11 @@ def process_restore(db: Session, user_id: int, zip_filepath: str):
                         if 'trade_id' in row_data and row_data['trade_id'] in id_map["trades"]:
                             row_data['trade_id'] = id_map["trades"][row_data['trade_id']]
 
+                        # Map attachment owner_id for restored screenshots
+                        if table_def["name"] == "attachments" and row_data.get("owner_type") == "trade":
+                            if 'owner_id' in row_data and row_data['owner_id'] in id_map["trades"]:
+                                row_data['owner_id'] = id_map["trades"][row_data['owner_id']]
+
                         # For instruments, we check the symbol string instead of trusting the old ID
                         if table_def["name"] == "instruments":
                             existing_inst = db.query(table_def["model"]).filter(
@@ -99,9 +101,10 @@ def process_restore(db: Session, user_id: int, zip_filepath: str):
                         if old_id and table_def["name"] in id_map:
                             id_map[table_def["name"]][old_id] = new_record.id
 
-                db.commit()
+        # 4. Commit EVERYTHING safely in one transaction
+        db.commit()
 
-        # 4. Restore image files to the uploads directory
+        # 5. Restore image files to the uploads directory
         uploads_source = os.path.join(TEMP_DIR, "uploads")
         if os.path.exists(uploads_source):
             for filename in os.listdir(uploads_source):
