@@ -1,6 +1,6 @@
 from app.models.user import User
 from app.models.strategy import Strategy, StrategyRule, StrategyDeposit
-from app.models.trade import Trade, TradeConditionCheck
+from app.models.trade import Trade, TradeConditionCheck, TradeExecution
 from app.models.attachment import Attachment
 from app.models.instrument import Market, Instrument
 from app.models.app_log import AppLog
@@ -17,12 +17,12 @@ BACKUP_REGISTRY = [
     {
         "name": "markets",
         "model": Market,
-        "user_filter": lambda query, user_id: query # Global table, no user filter
+        "user_filter": lambda query, user_id: query
     },
     {
         "name": "instruments",
         "model": Instrument,
-        "user_filter": lambda query, user_id: query # Global table, no user filter
+        "user_filter": lambda query, user_id: query
     },
     {
         "name": "strategies",
@@ -60,12 +60,12 @@ BACKUP_REGISTRY = [
         "user_filter": lambda query, user_id: query.filter(Attachment.user_id == user_id)
     },
     {
-        "name": "alerts",                                                      # <-- NEW
+        "name": "alerts",
         "model": Alert,
         "user_filter": lambda query, user_id: query.filter(Alert.user_id == user_id)
     },
     {
-        "name": "app_logs",                                                    # <-- NEW
+        "name": "app_logs",
         "model": AppLog,
         "user_filter": lambda query, user_id: query.filter(AppLog.user_id == user_id)
     }
