@@ -13,8 +13,11 @@ class Trade(Base):
 
     direction = Column(String(10), nullable=False)
     status = Column(String(20), default='open')
+
+    # Aggregated fields (now driven by executions)
     entry_price = Column(Numeric(15, 5), nullable=False)
     size = Column(Numeric(15, 2), nullable=False)
+
     stop_loss = Column(Numeric(15, 5))
     take_profit = Column(Numeric(15, 5))
 
@@ -33,13 +36,25 @@ class Trade(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    # Relationships
     instrument = relationship("Instrument", back_populates="trades")
-
-    # <-- FIX: Add the relationship back to Strategy -->
     strategy = relationship("Strategy", back_populates="trades")
-
     condition_checks = relationship("TradeConditionCheck", back_populates="trade", cascade="all, delete-orphan")
+
+    # NEW RELATIONSHIP
+    executions = relationship("TradeExecution", back_populates="trade", cascade="all, delete-orphan", order_by="TradeExecution.executed_at")
+
+class TradeExecution(Base):
+    __tablename__ = "trade_executions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    trade_id = Column(Integer, ForeignKey("trades.id", ondelete="CASCADE"), nullable=False)
+    execution_type = Column(String(10), nullable=False)
+    price = Column(Numeric(15, 5), nullable=False)
+    size = Column(Numeric(15, 2), nullable=False)
+    executed_at = Column(DateTime(timezone=True), server_default=func.now())
+    note = Column(Text)
+
+    trade = relationship("Trade", back_populates="executions")
 
 class TradeConditionCheck(Base):
     __tablename__ = "trade_condition_checks"

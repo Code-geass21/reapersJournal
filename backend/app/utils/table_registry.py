@@ -45,6 +45,11 @@ BACKUP_REGISTRY = [
         "user_filter": lambda query, user_id: query.filter(Trade.user_id == user_id)
     },
     {
+        "name": "trade_executions",
+        "model": TradeExecution,
+        "user_filter": lambda query, user_id: query.join(Trade).filter(Trade.user_id == user_id)
+    },
+    {
         "name": "trade_condition_checks",
         "model": TradeConditionCheck,
         "user_filter": lambda query, user_id: query.join(Trade).filter(Trade.user_id == user_id)

@@ -14,14 +14,30 @@ class TradeConditionCheckOut(TradeConditionCheckBase):
     id: int
     trade_id: int
     created_at: datetime
+    class Config:
+        from_attributes = True
 
+# NEW: Execution Schemas
+class TradeExecutionBase(BaseModel):
+    execution_type: str
+    price: float
+    size: float
+    note: Optional[str] = None
+    executed_at: Optional[datetime] = None
+
+class TradeExecutionCreate(TradeExecutionBase):
+    pass
+
+class TradeExecutionOut(TradeExecutionBase):
+    id: int
+    trade_id: int
     class Config:
         from_attributes = True
 
 class TradeBase(BaseModel):
     strategy_id: int
     instrument_id: int
-    direction: str  # 'long' or 'short'
+    direction: str
     status: str = 'open'
     entry_price: float
     size: float
@@ -33,6 +49,8 @@ class TradeBase(BaseModel):
 
 class TradeCreate(TradeBase):
     condition_checks: List[TradeConditionCheckCreate] = []
+    # Optionally pass an initial execution on creation
+    initial_execution: Optional[TradeExecutionCreate] = None
 
 class TradeUpdate(BaseModel):
     status: Optional[str] = None
@@ -56,6 +74,7 @@ class TradeOut(TradeBase):
     r_multiple: Optional[float] = None
     rule_violations: Dict[str, Any] = {}
     condition_checks: List[TradeConditionCheckOut] = []
+    executions: List[TradeExecutionOut] = [] # Added to output
 
     class Config:
         from_attributes = True
