@@ -6,6 +6,7 @@ project_dump.txt
 reapers_journal_status.xlsx
 reapers_journal_status_v2.xlsx
 claude_dump.py
+gitlog.py
 
 # Python / FastAPI (Backend)
 __pycache__/
