@@ -21,12 +21,34 @@ def _evaluate_rule_violations(db: Session, strategy_id: int, trade_in: TradeCrea
 
         params = rule.params or {}
         if rule.rule_type == 'risk':
+            # 1. Enforce Mandatory Stop Loss
             if params.get('requires_sl', False) and not trade_in.stop_loss:
                 violations['risk_no_sl'] = f"Risk Rule '{rule.label}' requires a Stop Loss."
 
+            # 2. Enforce Max Lot Size
             max_lot = params.get('max_lot_size')
             if max_lot and trade_in.size > max_lot:
                 violations['risk_max_lot'] = f"Size {trade_in.size} exceeds maximum {max_lot} lots."
+
+            # 3. Enforce Minimum Risk-to-Reward (RR)
+            min_rr = params.get('min_rr')
+            if min_rr:
+                if not trade_in.stop_loss or not trade_in.take_profit:
+                    violations['risk_min_rr_missing'] = f"Rule '{rule.label}' requires both SL and TP to evaluate Minimum RR."
+                else:
+                    entry = float(trade_in.entry_price)
+                    sl = float(trade_in.stop_loss)
+                    tp = float(trade_in.take_profit)
+
+                    risk = (entry - sl) if trade_in.direction == 'long' else (sl - entry)
+                    reward = (tp - entry) if trade_in.direction == 'long' else (entry - tp)
+
+                    if risk > 0:
+                        calc_rr = reward / risk
+                        if calc_rr < float(min_rr):
+                            violations['risk_min_rr'] = f"Trade RR ({calc_rr:.2f}) is below strategy minimum ({min_rr})."
+                    else:
+                        violations['risk_invalid_sl'] = "Invalid Stop Loss placement. Risk must be > 0."
 
     return violations
 

@@ -68,6 +68,24 @@ def delete_strategy(
 
 # --- Strategy Rule Endpoints ---
 
+# --- Helper: Sanitize JSON Parameters ---
+def sanitize_rule_params(rule_type: str, params: dict) -> dict:
+    if not params: return {}
+    clean_params = {}
+
+    if rule_type == 'risk':
+        if 'requires_sl' in params:
+            clean_params['requires_sl'] = bool(params['requires_sl'])
+        if 'max_lot_size' in params:
+            try: clean_params['max_lot_size'] = float(params['max_lot_size'])
+            except ValueError: pass
+        if 'min_rr' in params:
+            try: clean_params['min_rr'] = float(params['min_rr'])
+            except ValueError: pass
+
+    # Return cleaned params for known types, or pass-through for unhandled types
+    return clean_params if rule_type == 'risk' else params
+
 @router.get("/{strategy_id}/rules", response_model=List[StrategyRuleOut])
 def get_strategy_rules(
     strategy_id: int,
@@ -91,11 +109,17 @@ def create_strategy_rule(
     if not strategy:
         raise HTTPException(status_code=404, detail="Strategy not found")
 
-    new_rule = StrategyRule(**rule_in.model_dump(), strategy_id=strategy_id)
+    # Clean the JSON payload
+    clean_params = sanitize_rule_params(rule_in.rule_type, rule_in.params)
+
+    new_rule = StrategyRule(
+        **rule_in.model_dump(exclude={"params"}),
+        params=clean_params,
+        strategy_id=strategy_id
+    )
     db.add(new_rule)
     db.commit()
     db.refresh(new_rule)
-    return new_rule
 
 # --- ADDED: Update Rule ---
 @router.put("/{strategy_id}/rules/{rule_id}", response_model=StrategyRuleOut)
@@ -114,8 +138,14 @@ def update_strategy_rule(
     if not rule:
         raise HTTPException(status_code=404, detail="Rule not found")
 
-    for key, value in rule_in.model_dump().items():
+    # Clean the JSON payload
+    clean_params = sanitize_rule_params(rule_in.rule_type, rule_in.params)
+
+    update_data = rule_in.model_dump(exclude={"params"})
+    for key, value in update_data.items():
         setattr(rule, key, value)
+
+    rule.params = clean_params
 
     db.commit()
     db.refresh(rule)
