@@ -66,8 +66,14 @@ export const exportTradesToPDF = async (strategyId = null) => {
         let url = '/trades/';
         if (strategyId) url += `?strategy_id=${strategyId}`;
 
-        const res = await api.get(url);
-        const trades = res.data;
+        // BUG 24 FIX: Fetch instruments concurrently to map the ID to the Symbol
+        const [tradesRes, instRes] = await Promise.all([
+            api.get(url),
+                                                       api.get('/instruments/')
+        ]);
+
+        const trades = tradesRes.data;
+        const instruments = instRes.data;
 
         if (!trades || trades.length === 0) {
             alert("No trades to export.");
@@ -81,11 +87,20 @@ export const exportTradesToPDF = async (strategyId = null) => {
         const tableRows = [];
 
         trades.forEach(t => {
+            // Find the human-readable symbol
+            const inst = instruments.find(i => i.id === t.instrument_id);
+            const symbol = inst ? inst.symbol : t.instrument_id;
+
             const tradeData = [
-                t.id, t.status, t.instrument_id, t.direction,
-                t.entry_price, t.exit_price || '—',
+                t.id,
+                t.status,
+                symbol, // Replaced t.instrument_id with symbol
+                t.direction,
+                t.entry_price,
+                t.exit_price || '—',
                 t.pnl_realized !== null ? `$${t.pnl_realized}` : '—',
-                t.r_multiple || '—', t.emotion || '—',
+                t.r_multiple || '—',
+                t.emotion || '—',
                 new Date(t.opened_at).toLocaleDateString()
             ];
             tableRows.push(tradeData);
