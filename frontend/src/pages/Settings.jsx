@@ -184,11 +184,26 @@ export default function Settings() {
     };
 
     const handleDeleteUser = async (userId) => {
-        if (!window.confirm("Permanently delete this user and ALL their data? This cannot be undone.")) return;
+        const password = window.prompt("WARNING: This permanently deletes the user and ALL their trades, images, and data.\n\nEnter your admin password to confirm:");
+
+        if (!password) {
+            return; // Cancelled or empty
+        }
+
         try {
-            await api.delete(`/users/${userId}`);
+            const formData = new FormData();
+            formData.append('password', password);
+
+            // Change from api.delete to api.delete with data (axios specific way to send body in DELETE)
+            await api.delete(`/users/${userId}`, {
+                data: formData,
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            // Refresh the user list after successful deletion
             const res = await api.get('/users/');
             setAllUsers(res.data);
+            alert('User successfully deleted.');
         } catch (err) {
             alert(err.response?.data?.detail || 'Delete failed');
         }

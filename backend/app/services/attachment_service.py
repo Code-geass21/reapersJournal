@@ -48,3 +48,20 @@ def delete_attachment(db: Session, attachment: Attachment):
     # Remove DB record
     db.delete(attachment)
     db.commit()
+
+# ADD THIS NEW FUNCTION
+def delete_all_for_owner(db: Session, owner_type: str, owner_id: int):
+    """Deletes all DB records and physical files for a specific owner."""
+    attachments = db.query(Attachment).filter(
+        Attachment.owner_type == owner_type,
+        Attachment.owner_id == owner_id
+    ).all()
+
+    for att in attachments:
+        file_path = os.path.join(UPLOAD_DIR, att.path)
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                print(f"Warning: Could not delete file {file_path}: {e}")
+        db.delete(att)

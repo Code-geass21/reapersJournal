@@ -10,6 +10,8 @@ from typing import List
 from app.api.deps import get_admin_user
 from app.utils.security import get_password_hash
 from fastapi import HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, Form, status
+from app.utils.security import get_password_hash, verify_password
 
 
 class AdminUserCreate(BaseModel):
@@ -120,9 +122,11 @@ def update_user_status(
     db.refresh(user)
     return user
 
+# Update the endpoint signature to require a password
 @router.delete("/{target_user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user(
     target_user_id: int,
+    password: str = Form(...), # Require admin password confirmation
     db: Session = Depends(get_db),
     admin: User = Depends(get_admin_user)
 ):
@@ -130,10 +134,32 @@ def delete_user(
     if target_user_id == admin.id:
         raise HTTPException(status_code=400, detail="You cannot delete your own admin account")
 
-    user = db.query(User).filter(User.id == target_user_id).first()
-    if not user:
+    # Verify the admin's password before executing the destructive action
+    if not verify_password(password, admin.password_hash):
+        raise HTTPException(status_code=401, detail="Incorrect admin password")
+
+    target_user = db.query(User).filter(User.id == target_user_id).first()
+    if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    db.delete(user)
+    # FIX FOR BUG 25: Wipe all physical files owned by this user
+    user_attachments = db.query(Attachment).filter(Attachment.user_id == target_user_id).all()
+    for att in user_attachments:
+        file_path = os.path.join(attachment_service.UPLOAD_DIR, att.path)
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                print(f"Warning: Could not delete user file {file_path}: {e}")
+        db.delete(att)
+
+    # Log the deletion
+    log_service.write(
+        db, action="user.delete", user_id=admin.id,
+        entity_type="user", entity_id=target_user_id,
+        before={"username": target_user.username, "email": target_user.email}
+    )
+
+    db.delete(target_user)
     db.commit()
     return None

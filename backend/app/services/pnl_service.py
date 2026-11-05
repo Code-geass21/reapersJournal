@@ -1,8 +1,9 @@
 from decimal import Decimal
 from sqlalchemy.orm import Session
+from fastapi import HTTPException
 from app.models.price import PriceCache
 
-# Import the math we just moved
+# Import the math utilities
 from app.utils.trading_math import calculate_pips, calculate_quote_pnl, calculate_r_multiple
 
 def get_usd_conversion_rate(db: Session, quote_ccy: str) -> Decimal:
@@ -12,15 +13,22 @@ def get_usd_conversion_rate(db: Session, quote_ccy: str) -> Decimal:
     if clean_ccy == 'USD':
         return Decimal("1.0")
 
+    # Check for USD as base currency (e.g., USDJPY)
     usd_base = db.query(PriceCache).filter(PriceCache.provider_symbol.like(f"USD{clean_ccy}%")).first()
     if usd_base and usd_base.price:
         return Decimal("1.0") / Decimal(str(usd_base.price))
 
+    # Check for USD as quote currency (e.g., EURUSD)
     usd_quote = db.query(PriceCache).filter(PriceCache.provider_symbol.like(f"{clean_ccy}USD%")).first()
     if usd_quote and usd_quote.price:
         return Decimal(str(usd_quote.price))
 
-    return Decimal("1.0")
+    # FIX FOR BUG 23: Instead of silently returning 1.0, raise an error
+    # to prevent storing wildly incorrect converted P&L.
+    raise HTTPException(
+        status_code=400,
+        detail=f"Missing USD conversion rate for {clean_ccy}. The price worker must fetch this pair before you can close the trade."
+    )
 
 def calculate_pnl(db: Session, direction: str, entry_price: float, exit_price: float, size: float, instrument: dict) -> dict:
     """Calculates raw points (pips) and realized P&L, auto-converting to USD."""

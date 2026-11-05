@@ -62,9 +62,22 @@ def delete_strategy(
     if not strategy:
         raise HTTPException(status_code=404, detail="Strategy not found")
 
-    db.delete(strategy)
-    db.commit()
-    return None
+    # FIX FOR BUG 24: Prevent cascading delete if trades exist
+    trade_count = db.query(Trade).filter(Trade.strategy_id == strategy_id).count()
+
+    if trade_count > 0:
+        # Soft-delete the strategy by deactivating it
+        strategy.is_active = False
+        db.commit()
+        # Note: We return 204 No Content here, which is standard for DELETE operations
+        # even if it was a soft delete under the hood.
+        # Alternatively, you could raise a 400 error to force the user to manually archive it.
+        return None
+    else:
+        # Hard delete is safe because no historical trade data relies on it
+        db.delete(strategy)
+        db.commit()
+        return None
 
 # --- Strategy Rule Endpoints ---
 

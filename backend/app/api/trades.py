@@ -12,6 +12,8 @@ from app.services import trade_service
 from app.jobs import fetch_prices, check_alerts
 from app.services import log_service
 from app.schemas.trade import TradeExecutionCreate
+from app.services import trade_service, attachment_service
+
 
 router = APIRouter(prefix="/trades", tags=["Trades"])
 logger = logging.getLogger(__name__)
@@ -84,12 +86,15 @@ def delete_trade(
     if not trade:
         raise HTTPException(status_code=404, detail="Trade not found")
 
-    # Audit log the deletion
+    # Audit log the deletion (Before deleting the trade data)
     log_service.write(
         db, action="trade.delete", user_id=current_user.id,
         entity_type="trade", entity_id=trade_id,
         before={"status": trade.status, "direction": trade.direction}
     )
+
+    # FIX FOR BUG 25: Clean up physical attachment files and rows
+    attachment_service.delete_all_for_owner(db, owner_type='trade', owner_id=trade.id)
 
     db.delete(trade)
     db.commit()

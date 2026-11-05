@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from app.models.trade import Trade, TradeConditionCheck, TradeExecution
 from app.models.instrument import Instrument
-from app.models.strategy import Strategy, StrategyRule # IMPORT ADDED: Strategy
+from app.models.strategy import Strategy, StrategyRule
 from app.schemas.trade import TradeCreate, TradeUpdate
 from app.services import pnl_service, log_service, alert_service
 from app.schemas.trade import TradeExecutionCreate
@@ -52,8 +52,35 @@ def _evaluate_rule_violations(db: Session, strategy_id: int, trade_in: TradeCrea
 
     return violations
 
+def _calculate_weighted_r_multiple(db: Session, trade: Trade) -> float:
+    if not trade.stop_loss:
+        return None
+
+    # Get all exit executions
+    exits = db.query(TradeExecution).filter(
+        TradeExecution.trade_id == trade.id,
+        TradeExecution.execution_type == 'exit'
+    ).all()
+
+    if not exits:
+        return None
+
+    total_exited_size = sum(float(e.size) for e in exits)
+    if total_exited_size == 0:
+        return None
+
+    # Calculate weighted average exit price
+    weighted_sum = sum(float(e.price) * float(e.size) for e in exits)
+    weighted_exit_price = weighted_sum / total_exited_size
+
+    return pnl_service.calculate_r_multiple(
+        direction=trade.direction,
+        entry_price=float(trade.entry_price),
+        exit_price=weighted_exit_price,
+        stop_loss=float(trade.stop_loss)
+    )
+
 def create_trade(db: Session, user_id: int, trade_in: TradeCreate) -> Trade:
-    # --- BUG 14 FIX: Validate Strategy Ownership & Instrument Existence ---
     strategy = db.query(Strategy).filter(Strategy.id == trade_in.strategy_id, Strategy.user_id == user_id).first()
     if not strategy:
         raise HTTPException(status_code=403, detail="Invalid strategy or you do not own it.")
@@ -106,7 +133,6 @@ def update_trade(db: Session, user_id: int, trade_id: int, trade_in: TradeUpdate
 
     update_data = trade_in.model_dump(exclude_unset=True)
 
-    # --- BUG 14 FIX: Validate Strategy Ownership & Instrument Existence on Edit ---
     if 'strategy_id' in update_data and update_data['strategy_id'] != trade.strategy_id:
         strategy = db.query(Strategy).filter(Strategy.id == update_data['strategy_id'], Strategy.user_id == user_id).first()
         if not strategy:
@@ -117,13 +143,11 @@ def update_trade(db: Session, user_id: int, trade_id: int, trade_in: TradeUpdate
         if not instrument:
             raise HTTPException(status_code=400, detail="Invalid instrument.")
 
-    # --- BUG 15 FIX: Protect closed trades ---
     if trade.status == 'closed':
         forbidden_edits = ['entry_price', 'size', 'direction', 'instrument_id', 'strategy_id', 'status', 'exit_price']
         if any(k in update_data for k in forbidden_edits):
             raise HTTPException(status_code=400, detail="Cannot modify core financial details of a closed trade.")
 
-    # --- BUG 15 FIX: Sync edits to the Entry Execution ---
     if trade.status == 'open' and ('entry_price' in update_data or 'size' in update_data):
         entry_exec = db.query(TradeExecution).filter(
             TradeExecution.trade_id == trade.id,
@@ -147,35 +171,43 @@ def update_trade(db: Session, user_id: int, trade_id: int, trade_in: TradeUpdate
         instrument = db.query(Instrument).filter(Instrument.id == trade.instrument_id).first()
         inst_dict = {"contract_size": instrument.contract_size, "pip_size": instrument.pip_size, "quote_ccy": instrument.quote_ccy}
 
+        # Calculate current open size by subtracting exited lots
+        exits = db.query(TradeExecution).filter(
+            TradeExecution.trade_id == trade.id,
+            TradeExecution.execution_type == 'exit'
+        ).all()
+        total_exited = sum(float(e.size) for e in exits)
+        current_open_size = float(trade.size) - total_exited
+
+        # Calculate P&L for the final chunk being closed
         pnl_data = pnl_service.calculate_pnl(
             db=db,
             direction=update_data.get('direction', trade.direction),
             entry_price=float(update_data.get('entry_price', trade.entry_price)),
             exit_price=update_data['exit_price'],
-            size=float(update_data.get('size', trade.size)),
+            size=current_open_size,
             instrument=inst_dict
         )
 
         current_fees = float(update_data.get('fees', trade.fees or 0))
-        update_data['pnl_realized'] = pnl_data['pnl_realized'] - current_fees
 
-        if trade.stop_loss:
-            update_data['r_multiple'] = pnl_service.calculate_r_multiple(
-                direction=update_data.get('direction', trade.direction),
-                entry_price=float(update_data.get('entry_price', trade.entry_price)),
-                exit_price=update_data['exit_price'],
-                stop_loss=float(trade.stop_loss)
-            )
+        # Accumulate the previously booked P&L and deduct fees
+        already_booked_pnl = float(trade.pnl_realized or 0)
+        final_chunk_pnl = pnl_data['pnl_realized']
+        update_data['pnl_realized'] = already_booked_pnl + final_chunk_pnl - current_fees
 
-        # --- BUG 16 FIX: Create the Exit Execution ---
         exit_execution = TradeExecution(
             trade_id=trade.id,
             execution_type='exit',
             price=update_data['exit_price'],
-            size=update_data.get('size', trade.size),
+            size=current_open_size,
             executed_at=update_data['closed_at']
         )
         db.add(exit_execution)
+        db.flush() # Ensure the new execution is available for weighted R-multiple
+
+        if trade.stop_loss:
+            update_data['r_multiple'] = _calculate_weighted_r_multiple(db, trade)
 
     for key, value in update_data.items():
         setattr(trade, key, value)
@@ -197,8 +229,17 @@ def add_execution(db: Session, user_id: int, trade_id: int, exec_in: TradeExecut
     if exec_in.execution_type != 'exit':
         raise HTTPException(status_code=400, detail="Only exit executions can be logged manually.")
 
-    if exec_in.size <= 0 or exec_in.size > float(trade.size):
-        raise HTTPException(status_code=400, detail=f"Invalid size. Must be between 0.01 and {trade.size}")
+    # Calculate the true open size dynamically
+    exits = db.query(TradeExecution).filter(
+        TradeExecution.trade_id == trade.id,
+        TradeExecution.execution_type == 'exit'
+    ).all()
+
+    total_exited = sum(float(e.size) for e in exits)
+    current_open_size = float(trade.size) - total_exited
+
+    if exec_in.size <= 0 or exec_in.size > current_open_size:
+        raise HTTPException(status_code=400, detail=f"Invalid size. Must be between 0.01 and {current_open_size}")
 
     instrument = db.query(Instrument).filter(Instrument.id == trade.instrument_id).first()
     inst_dict = {"contract_size": instrument.contract_size, "pip_size": instrument.pip_size, "quote_ccy": instrument.quote_ccy}
@@ -213,10 +254,11 @@ def add_execution(db: Session, user_id: int, trade_id: int, exec_in: TradeExecut
         instrument=inst_dict
     )
 
-    # Accumulate the realized P&L and deduct the exited lots from the open size
+    # Accumulate the realized P&L
     current_pnl = float(trade.pnl_realized or 0.0)
     trade.pnl_realized = current_pnl + pnl_data['pnl_realized']
-    trade.size = float(trade.size) - exec_in.size
+
+    # We DO NOT modify trade.size here anymore so the original entry size is preserved
 
     new_exec = TradeExecution(
         trade_id=trade.id,
@@ -227,21 +269,21 @@ def add_execution(db: Session, user_id: int, trade_id: int, exec_in: TradeExecut
         note=exec_in.note
     )
     db.add(new_exec)
+    db.flush() # Ensure the new execution is available for weighted R-multiple
+
+    new_open_size = current_open_size - exec_in.size
 
     # Auto-close the trade if the entire position is liquidated
-    if trade.size <= 0.00001:  # Float math safety tolerance
-        trade.size = 0
+    if new_open_size <= 0.00001:  # Float math safety tolerance
         trade.status = 'closed'
         trade.closed_at = datetime.now(timezone.utc)
         trade.exit_price = exec_in.price
 
+        # Deduct total fees on the final close
+        trade.pnl_realized = float(trade.pnl_realized) - float(trade.fees or 0)
+
         if trade.stop_loss:
-            trade.r_multiple = pnl_service.calculate_r_multiple(
-                direction=trade.direction,
-                entry_price=float(trade.entry_price),
-                exit_price=exec_in.price,
-                stop_loss=float(trade.stop_loss)
-            )
+            trade.r_multiple = _calculate_weighted_r_multiple(db, trade)
 
     log_service.write(db, action="trade.add_execution", user_id=user_id, entity_type="trade", entity_id=trade.id)
 
