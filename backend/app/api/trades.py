@@ -10,6 +10,7 @@ from app.api.deps import get_current_user
 from app.models.user import User
 from app.services import trade_service
 from app.jobs import fetch_prices, check_alerts
+from app.services import log_service
 
 router = APIRouter(prefix="/trades", tags=["Trades"])
 logger = logging.getLogger(__name__)
@@ -70,3 +71,25 @@ def update_trade(
     current_user: User = Depends(get_current_user)
 ):
     return trade_service.update_trade(db, current_user.id, trade_id, trade_in)
+
+
+@router.delete("/{trade_id}", status_code=204)
+def delete_trade(
+    trade_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    trade = db.query(Trade).filter(Trade.id == trade_id, Trade.user_id == current_user.id).first()
+    if not trade:
+        raise HTTPException(status_code=404, detail="Trade not found")
+
+    # Audit log the deletion
+    log_service.write(
+        db, action="trade.delete", user_id=current_user.id,
+        entity_type="trade", entity_id=trade_id,
+        before={"status": trade.status, "direction": trade.direction}
+    )
+
+    db.delete(trade)
+    db.commit()
+    return None
