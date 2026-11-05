@@ -119,3 +119,21 @@ def update_user_status(
     db.commit()
     db.refresh(user)
     return user
+
+@router.delete("/{target_user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(
+    target_user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user)
+):
+    """Admin only: Permanently delete a user and all their data."""
+    if target_user_id == admin.id:
+        raise HTTPException(status_code=400, detail="You cannot delete your own admin account")
+
+    user = db.query(User).filter(User.id == target_user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    db.delete(user)
+    db.commit()
+    return None

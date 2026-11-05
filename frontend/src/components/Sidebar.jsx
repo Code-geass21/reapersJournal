@@ -1,9 +1,31 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useTheme } from '../hooks/useTheme';
+import api from '../utils/api';
 
 export default function Sidebar() {
     const { theme, toggleTheme } = useTheme();
+    const [profile, setProfile] = useState(null);
+    const [avatarUrl, setAvatarUrl] = useState(null);
+
+    // Fetch user profile and avatar on mount
+    useEffect(() => {
+        const loadProfile = async () => {
+            try {
+                if (!localStorage.getItem('token')) return;
+                const res = await api.get('/users/me');
+                setProfile(res.data);
+
+                if (res.data.avatar_attachment_id) {
+                    const avatarRes = await api.get(`/attachments/${res.data.avatar_attachment_id}/file`, { responseType: 'blob' });
+                    setAvatarUrl(URL.createObjectURL(avatarRes.data));
+                }
+            } catch (err) {
+                console.error("Failed to load profile", err);
+            }
+        };
+        loadProfile();
+    }, []);
 
     const linkStyle = ({ isActive }) => ({
         display: 'block',
@@ -28,9 +50,19 @@ export default function Sidebar() {
             height: '100vh',
             boxSizing: 'border-box'
         }}>
-        <h2 style={{ color: '#22d3ee', margin: '0 0 2rem 1rem', fontSize: '1.25rem' }}>
+        {/* Header with dynamic Avatar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem', padding: '0 0.5rem' }}>
+        {avatarUrl ? (
+            <img src={avatarUrl} alt="Avatar" style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} />
+        ) : (
+            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f8fafc', fontWeight: 'bold' }}>
+            {profile?.display_name?.charAt(0) || profile?.username?.charAt(0) || 'U'}
+            </div>
+        )}
+        <h2 style={{ color: '#22d3ee', margin: 0, fontSize: '1.25rem' }}>
         Reaper's Journal
         </h2>
+        </div>
 
         <nav style={{ flex: 1 }}>
         <NavLink to="/" style={linkStyle}>Dashboard</NavLink>
