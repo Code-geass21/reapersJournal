@@ -7,19 +7,19 @@ export default function StrategyDetail() {
     const [strategy, setStrategy] = useState(null);
     const [rules, setRules] = useState([]);
     const [deposits, setDeposits] = useState([]);
+    const [balanceData, setBalanceData] = useState({ net_funding: 0, realized_pnl: 0, total_balance: 0 });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-    // Rule Form State
     const [isRuleFormOpen, setIsRuleFormOpen] = useState(false);
-    const [newRule, setNewRule] = useState({
+    const [editingRuleId, setEditingRuleId] = useState(null);
+    const [ruleForm, setRuleForm] = useState({
         rule_type: 'entry',
         label: '',
         params: '{}',
         is_required: true,
     });
 
-    // Deposit Form State
     const [isDepositFormOpen, setIsDepositFormOpen] = useState(false);
     const [newDeposit, setNewDeposit] = useState({
         amount: '',
@@ -30,10 +30,11 @@ export default function StrategyDetail() {
 
     const fetchData = async () => {
         try {
-            const [stratRes, rulesRes, depositsRes] = await Promise.all([
+            const [stratRes, rulesRes, depositsRes, balanceRes] = await Promise.all([
                 api.get(`/strategies/`),
-                                                                        api.get(`/strategies/${id}/rules`),
-                                                                        api.get(`/strategies/${id}/deposits`)
+                                                                                    api.get(`/strategies/${id}/rules`),
+                                                                                    api.get(`/strategies/${id}/deposits`),
+                                                                                    api.get(`/strategies/${id}/balance`)
             ]);
 
             const foundStrategy = stratRes.data.find(s => s.id === parseInt(id));
@@ -42,6 +43,7 @@ export default function StrategyDetail() {
             setStrategy(foundStrategy);
             setRules(rulesRes.data);
             setDeposits(depositsRes.data);
+            setBalanceData(balanceRes.data);
         } catch (err) {
             setError('Failed to load strategy details.');
         } finally {
@@ -53,31 +55,48 @@ export default function StrategyDetail() {
         fetchData();
     }, [id]);
 
-    const handleCreateRule = async (e) => {
+    const resetRuleForm = () => {
+        setIsRuleFormOpen(false);
+        setEditingRuleId(null);
+        setRuleForm({ rule_type: 'entry', label: '', params: '{}', is_required: true });
+    }
+
+    const handleEditRuleClick = (rule) => {
+        setRuleForm({
+            rule_type: rule.rule_type,
+            label: rule.label,
+            params: JSON.stringify(rule.params, null, 2),
+                    is_required: rule.is_required
+        });
+        setEditingRuleId(rule.id);
+        setIsRuleFormOpen(true);
+    }
+
+    const handleSaveRule = async (e) => {
         e.preventDefault();
         try {
             let parsedParams = {};
-            if (newRule.params.trim()) {
+            if (ruleForm.params.trim()) {
                 try {
-                    parsedParams = JSON.parse(newRule.params);
+                    parsedParams = JSON.parse(ruleForm.params);
                 } catch (e) {
                     alert("Invalid JSON format for params");
                     return;
                 }
             }
 
-            const payload = {
-                ...newRule,
-                params: parsedParams,
-                sort_order: rules.length
-            };
+            const payload = { ...ruleForm, params: parsedParams };
 
-            await api.post(`/strategies/${id}/rules`, payload);
-            setIsRuleFormOpen(false);
-            setNewRule({ rule_type: 'entry', label: '', params: '{}', is_required: true });
+            if (editingRuleId) {
+                await api.put(`/strategies/${id}/rules/${editingRuleId}`, payload);
+            } else {
+                payload.sort_order = rules.length;
+                await api.post(`/strategies/${id}/rules`, payload);
+            }
+            resetRuleForm();
             fetchData();
         } catch (err) {
-            alert(err.response?.data?.detail || 'Failed to create rule');
+            alert(err.response?.data?.detail || 'Failed to save rule');
         }
     };
 
@@ -117,10 +136,6 @@ export default function StrategyDetail() {
     if (loading) return <div style={{ padding: '2rem' }}>Loading...</div>;
     if (error) return <div style={{ padding: '2rem', color: '#ef4444' }}>{error}</div>;
 
-    const totalBalance = deposits.reduce((acc, dep) => {
-        return dep.kind === 'deposit' ? acc + parseFloat(dep.amount) : acc - parseFloat(dep.amount);
-    }, 0);
-
     return (
         <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
         <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -133,9 +148,13 @@ export default function StrategyDetail() {
         </div>
 
         <div style={{ textAlign: 'right', background: '#1e293b', padding: '1rem', borderRadius: '8px' }}>
-        <div style={{ fontSize: '0.875rem', color: '#94a3b8' }}>Funding Balance</div>
-        <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: totalBalance >= 0 ? '#22c55e' : '#ef4444' }}>
-        ${totalBalance.toFixed(2)}
+        <div style={{ fontSize: '0.875rem', color: '#94a3b8' }}>Total Strategy Balance</div>
+        <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: balanceData.total_balance >= 0 ? '#22c55e' : '#ef4444', marginBottom: '0.5rem' }}>
+        ${balanceData.total_balance.toFixed(2)}
+        </div>
+        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+        Net Funding: ${balanceData.net_funding.toFixed(2)}<br/>
+        Realized P&L: <span style={{color: balanceData.realized_pnl >= 0 ? '#22c55e' : '#ef4444'}}>${balanceData.realized_pnl.toFixed(2)}</span>
         </div>
         </div>
         </div>
@@ -143,7 +162,7 @@ export default function StrategyDetail() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <h3 style={{ margin: 0 }}>Strategy Rules</h3>
         <button
-        onClick={() => setIsRuleFormOpen(!isRuleFormOpen)}
+        onClick={() => isRuleFormOpen ? resetRuleForm() : setIsRuleFormOpen(true)}
         style={{ background: '#334155', color: '#f8fafc', padding: '0.5rem 1rem', border: 'none', cursor: 'pointer', borderRadius: '4px' }}
         >
         {isRuleFormOpen ? 'Cancel' : '+ Add Rule'}
@@ -152,11 +171,11 @@ export default function StrategyDetail() {
 
         {isRuleFormOpen && (
             <div style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
-            <form onSubmit={handleCreateRule} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <form onSubmit={handleSaveRule} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div style={{ display: 'flex', gap: '1rem' }}>
             <select
-            value={newRule.rule_type}
-            onChange={e => setNewRule({...newRule, rule_type: e.target.value})}
+            value={ruleForm.rule_type}
+            onChange={e => setRuleForm({...ruleForm, rule_type: e.target.value})}
             style={{ padding: '0.5rem', flex: 1 }}
             >
             <option value="entry">Entry Rule</option>
@@ -167,33 +186,30 @@ export default function StrategyDetail() {
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#cbd5e1' }}>
             <input
             type="checkbox"
-            checked={newRule.is_required}
-            onChange={e => setNewRule({...newRule, is_required: e.target.checked})}
+            checked={ruleForm.is_required}
+            onChange={e => setRuleForm({...ruleForm, is_required: e.target.checked})}
             />
             Required
             </label>
             </div>
-
             <input
             placeholder="Rule Label (e.g., Price > 200 EMA)"
-            value={newRule.label}
-            onChange={e => setNewRule({...newRule, label: e.target.value})}
+            value={ruleForm.label}
+            onChange={e => setRuleForm({...ruleForm, label: e.target.value})}
             required
             style={{ padding: '0.5rem' }}
             />
-
             <div>
             <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Parameters (JSON)</label>
             <textarea
             placeholder='{"threshold": 200}'
-        value={newRule.params}
-        onChange={e => setNewRule({...newRule, params: e.target.value})}
+        value={ruleForm.params}
+        onChange={e => setRuleForm({...ruleForm, params: e.target.value})}
         style={{ padding: '0.5rem', width: '100%', minHeight: '60px', fontFamily: 'monospace' }}
         />
         </div>
-
         <button type="submit" style={{ background: '#22d3ee', color: '#0f172a', padding: '0.5rem', fontWeight: 'bold', border: 'none', cursor: 'pointer', borderRadius: '4px' }}>
-        Save Rule
+        {editingRuleId ? 'Update Rule' : 'Save Rule'}
         </button>
         </form>
         </div>
@@ -207,14 +223,7 @@ export default function StrategyDetail() {
                 <div key={rule.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#1e293b', padding: '1rem', borderRadius: '4px' }}>
                 <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
-                <span style={{
-                    fontSize: '0.75rem',
-                    textTransform: 'uppercase',
-                    padding: '0.2rem 0.5rem',
-                    borderRadius: '4px',
-                    background: rule.rule_type === 'risk' ? '#ef4444' : rule.rule_type === 'entry' ? '#22c55e' : '#3b82f6',
-                    color: 'white'
-                }}>
+                <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', padding: '0.2rem 0.5rem', borderRadius: '4px', background: rule.rule_type === 'risk' ? '#ef4444' : rule.rule_type === 'entry' ? '#22c55e' : '#3b82f6', color: 'white' }}>
                 {rule.rule_type}
                 </span>
                 <strong style={{ color: rule.is_required ? '#f8fafc' : '#94a3b8' }}>{rule.label}</strong>
@@ -225,9 +234,10 @@ export default function StrategyDetail() {
                     </pre>
                 )}
                 </div>
-                <button onClick={() => handleDeleteRule(rule.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem' }}>
-                ×
-                </button>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                <button onClick={() => handleEditRuleClick(rule)} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.875rem' }}>Edit</button>
+                <button onClick={() => handleDeleteRule(rule.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem' }}>×</button>
+                </div>
                 </div>
             ))}
             </div>
@@ -265,7 +275,6 @@ export default function StrategyDetail() {
             style={{ padding: '0.5rem', flex: 1 }}
             />
             </div>
-
             <input
             type="number"
             step="0.01"
@@ -275,14 +284,12 @@ export default function StrategyDetail() {
             required
             style={{ padding: '0.5rem' }}
             />
-
             <input
             placeholder="Notes (optional)"
             value={newDeposit.note}
             onChange={e => setNewDeposit({...newDeposit, note: e.target.value})}
             style={{ padding: '0.5rem' }}
             />
-
             <button type="submit" style={{ background: '#22d3ee', color: '#0f172a', padding: '0.5rem', fontWeight: 'bold', border: 'none', cursor: 'pointer', borderRadius: '4px' }}>
             Save Transaction
             </button>
@@ -303,14 +310,11 @@ export default function StrategyDetail() {
                 </div>
                 {dep.note && <div style={{ color: '#cbd5e1', fontSize: '0.875rem', marginTop: '0.25rem' }}>{dep.note}</div>}
                 </div>
-                <button onClick={() => handleDeleteDeposit(dep.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem' }}>
-                ×
-                </button>
+                <button onClick={() => handleDeleteDeposit(dep.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem' }}>×</button>
                 </div>
             ))}
             </div>
         )}
-
         </div>
     );
 }

@@ -7,9 +7,9 @@ export default function Strategies() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-    // Form state
     const [isFormOpen, setIsFormOpen] = useState(false);
-    const [newStrategy, setNewStrategy] = useState({
+    const [editingId, setEditingId] = useState(null);
+    const [formState, setFormState] = useState({
         name: '',
         description: '',
         market: 'FOREX',
@@ -33,21 +33,52 @@ export default function Strategies() {
         fetchStrategies();
     }, []);
 
-    const handleCreate = async (e) => {
+    const resetForm = () => {
+        setIsFormOpen(false);
+        setEditingId(null);
+        setFormState({ name: '', description: '', market: 'FOREX', funding_mode: 'non_systematic', sip_amount: '', sip_frequency: 'monthly' });
+    }
+
+    const handleEditClick = (strategy) => {
+        setFormState({
+            name: strategy.name,
+            description: strategy.description || '',
+            market: strategy.market,
+            funding_mode: strategy.funding_mode,
+            sip_amount: strategy.sip_amount || '',
+            sip_frequency: strategy.sip_frequency || 'monthly',
+        });
+        setEditingId(strategy.id);
+        setIsFormOpen(true);
+    }
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            // Clean up empty numbers
-            const payload = { ...newStrategy };
+            const payload = { ...formState };
             if (!payload.sip_amount) payload.sip_amount = null;
 
-            await api.post('/strategies/', payload);
-            setIsFormOpen(false);
-            setNewStrategy({ name: '', description: '', market: 'FOREX', funding_mode: 'non_systematic', sip_amount: '', sip_frequency: 'monthly' });
-            fetchStrategies(); // Refresh the list
+            if (editingId) {
+                await api.put(`/strategies/${editingId}`, payload);
+            } else {
+                await api.post('/strategies/', payload);
+            }
+            resetForm();
+            fetchStrategies();
         } catch (err) {
-            setError(err.response?.data?.detail || 'Failed to create strategy');
+            setError(err.response?.data?.detail || 'Failed to save strategy');
         }
     };
+
+    const handleDelete = async (id) => {
+        if (!window.confirm("Are you sure? This will delete the strategy, its rules, and ALL associated trades. This cannot be undone.")) return;
+        try {
+            await api.delete(`/strategies/${id}`);
+            fetchStrategies();
+        } catch (err) {
+            alert('Failed to delete strategy');
+        }
+    }
 
     if (loading) return <div style={{ padding: '2rem' }}>Loading strategies...</div>;
 
@@ -56,7 +87,7 @@ export default function Strategies() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h2 style={{ margin: 0 }}>My Strategies</h2>
         <button
-        onClick={() => setIsFormOpen(!isFormOpen)}
+        onClick={() => isFormOpen ? resetForm() : setIsFormOpen(true)}
         style={{ background: '#22d3ee', color: '#0f172a', padding: '0.5rem 1rem', border: 'none', fontWeight: 'bold', cursor: 'pointer', borderRadius: '4px' }}
         >
         {isFormOpen ? 'Cancel' : '+ New Strategy'}
@@ -67,38 +98,36 @@ export default function Strategies() {
 
         {isFormOpen && (
             <div style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
-            <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <input
             placeholder="Strategy Name (e.g., London Breakout)"
-            value={newStrategy.name}
-            onChange={e => setNewStrategy({...newStrategy, name: e.target.value})}
+            value={formState.name}
+            onChange={e => setFormState({...formState, name: e.target.value})}
             required
             style={{ padding: '0.5rem' }}
             />
             <textarea
             placeholder="Description"
-            value={newStrategy.description}
-            onChange={e => setNewStrategy({...newStrategy, description: e.target.value})}
+            value={formState.description}
+            onChange={e => setFormState({...formState, description: e.target.value})}
             style={{ padding: '0.5rem', minHeight: '80px' }}
             />
-
             <div style={{ display: 'flex', gap: '1rem' }}>
             <div style={{ flex: 1 }}>
             <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Market</label>
             <select
-            value={newStrategy.market}
-            onChange={e => setNewStrategy({...newStrategy, market: e.target.value})}
+            value={formState.market}
+            onChange={e => setFormState({...formState, market: e.target.value})}
             style={{ width: '100%', padding: '0.5rem' }}
             >
             <option value="FOREX">Forex</option>
-            {/* Future markets will go here */}
             </select>
             </div>
             <div style={{ flex: 1 }}>
             <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Funding Mode</label>
             <select
-            value={newStrategy.funding_mode}
-            onChange={e => setNewStrategy({...newStrategy, funding_mode: e.target.value})}
+            value={formState.funding_mode}
+            onChange={e => setFormState({...formState, funding_mode: e.target.value})}
             style={{ width: '100%', padding: '0.5rem' }}
             >
             <option value="non_systematic">Non-Systematic (Manual)</option>
@@ -107,19 +136,19 @@ export default function Strategies() {
             </div>
             </div>
 
-            {newStrategy.funding_mode === 'systematic' && (
+            {formState.funding_mode === 'systematic' && (
                 <div style={{ display: 'flex', gap: '1rem' }}>
                 <input
                 type="number"
                 placeholder="SIP Amount"
-                value={newStrategy.sip_amount}
-                onChange={e => setNewStrategy({...newStrategy, sip_amount: e.target.value})}
+                value={formState.sip_amount}
+                onChange={e => setFormState({...formState, sip_amount: e.target.value})}
                 style={{ flex: 1, padding: '0.5rem' }}
                 required
                 />
                 <select
-                value={newStrategy.sip_frequency}
-                onChange={e => setNewStrategy({...newStrategy, sip_frequency: e.target.value})}
+                value={formState.sip_frequency}
+                onChange={e => setFormState({...formState, sip_frequency: e.target.value})}
                 style={{ flex: 1, padding: '0.5rem' }}
                 >
                 <option value="weekly">Weekly</option>
@@ -129,7 +158,7 @@ export default function Strategies() {
             )}
 
             <button type="submit" style={{ background: '#22d3ee', color: '#0f172a', padding: '0.5rem', fontWeight: 'bold', border: 'none', cursor: 'pointer', marginTop: '0.5rem', borderRadius: '4px' }}>
-            Save Strategy
+            {editingId ? 'Update Strategy' : 'Save Strategy'}
             </button>
             </form>
             </div>
@@ -141,13 +170,20 @@ export default function Strategies() {
             <div style={{ display: 'grid', gap: '1rem' }}>
             {strategies.map(s => (
                 <div key={s.id} style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '8px', borderLeft: '4px solid #22d3ee' }}>
-                {/* Make the name clickable */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
                 <h3 style={{ margin: '0 0 0.5rem 0' }}>
                 <Link to={`/strategies/${s.id}`} style={{ color: '#f8fafc', textDecoration: 'none' }}>
                 {s.name} →
                 </Link>
                 </h3>
                 {s.description && <p style={{ margin: '0 0 1rem 0', color: '#cbd5e1' }}>{s.description}</p>}
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button onClick={() => handleEditClick(s)} style={{ background: 'transparent', border: '1px solid #334155', color: '#94a3b8', cursor: 'pointer', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}>Edit</button>
+                <button onClick={() => handleDelete(s.id)} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', cursor: 'pointer', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}>Delete</button>
+                </div>
+                </div>
                 <div style={{ display: 'flex', gap: '1rem', fontSize: '0.875rem', color: '#94a3b8' }}>
                 <span><strong>Market:</strong> {s.market}</span>
                 <span><strong>Mode:</strong> {s.funding_mode === 'systematic' ? 'Systematic SIP' : 'Manual'}</span>
