@@ -11,6 +11,7 @@ from app.models.user import User
 from app.services import trade_service
 from app.jobs import fetch_prices, check_alerts
 from app.services import log_service
+from app.schemas.trade import TradeExecutionCreate
 
 router = APIRouter(prefix="/trades", tags=["Trades"])
 logger = logging.getLogger(__name__)
@@ -93,3 +94,12 @@ def delete_trade(
     db.delete(trade)
     db.commit()
     return None
+
+@router.post("/{trade_id}/executions", response_model=TradeOut)
+def add_trade_execution(
+    trade_id: int,
+    exec_in: TradeExecutionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return trade_service.add_execution(db, current_user.id, trade_id, exec_in)
