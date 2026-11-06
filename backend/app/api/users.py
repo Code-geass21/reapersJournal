@@ -109,8 +109,17 @@ def update_user_status(
     admin: User = Depends(get_admin_user)
 ):
     """Admin only: Activate/deactivate or change roles of users."""
-    if target_user_id == admin.id and not update_data.is_active:
-        raise HTTPException(status_code=400, detail="You cannot disable your own admin account")
+
+    # FIX FOR BUG 26: Strictly validate the assigned role
+    if update_data.role not in ['admin', 'user']:
+        raise HTTPException(status_code=400, detail="Invalid role. Must be 'admin' or 'user'.")
+
+    # FIX FOR BUG 26: Prevent self-demotion alongside self-disabling
+    if target_user_id == admin.id:
+        if not update_data.is_active:
+            raise HTTPException(status_code=400, detail="You cannot disable your own admin account.")
+        if update_data.role != 'admin':
+            raise HTTPException(status_code=400, detail="You cannot demote yourself from the admin role.")
 
     user = db.query(User).filter(User.id == target_user_id).first()
     if not user:
@@ -118,6 +127,7 @@ def update_user_status(
 
     user.is_active = update_data.is_active
     user.role = update_data.role
+
     db.commit()
     db.refresh(user)
     return user

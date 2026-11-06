@@ -126,6 +126,7 @@ def create_trade(db: Session, user_id: int, trade_in: TradeCreate) -> Trade:
     db.refresh(new_trade)
     return new_trade
 
+
 def update_trade(db: Session, user_id: int, trade_id: int, trade_in: TradeUpdate) -> Trade:
     trade = db.query(Trade).filter(Trade.id == trade_id, Trade.user_id == user_id).first()
     if not trade:
@@ -134,19 +135,30 @@ def update_trade(db: Session, user_id: int, trade_id: int, trade_in: TradeUpdate
     update_data = trade_in.model_dump(exclude_unset=True)
 
     if 'strategy_id' in update_data and update_data['strategy_id'] != trade.strategy_id:
-        strategy = db.query(Strategy).filter(Strategy.id == update_data['strategy_id'], Strategy.user_id == user_id).first()
+        strategy = db.query(Strategy).filter(
+            Strategy.id == update_data['strategy_id'],
+            Strategy.user_id == user_id
+        ).first()
         if not strategy:
             raise HTTPException(status_code=403, detail="Invalid strategy or you do not own it.")
 
     if 'instrument_id' in update_data and update_data['instrument_id'] != trade.instrument_id:
-        instrument = db.query(Instrument).filter(Instrument.id == update_data['instrument_id']).first()
+        instrument = db.query(Instrument).filter(
+            Instrument.id == update_data['instrument_id']
+        ).first()
         if not instrument:
             raise HTTPException(status_code=400, detail="Invalid instrument.")
 
     if trade.status == 'closed':
-        forbidden_edits = ['entry_price', 'size', 'direction', 'instrument_id', 'strategy_id', 'status', 'exit_price']
+        forbidden_edits = [
+            'entry_price', 'size', 'direction',
+            'instrument_id', 'strategy_id', 'status', 'exit_price'
+        ]
         if any(k in update_data for k in forbidden_edits):
-            raise HTTPException(status_code=400, detail="Cannot modify core financial details of a closed trade.")
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot modify core financial details of a closed trade."
+            )
 
     if trade.status == 'open' and ('entry_price' in update_data or 'size' in update_data):
         entry_exec = db.query(TradeExecution).filter(
@@ -168,14 +180,22 @@ def update_trade(db: Session, user_id: int, trade_id: int, trade_in: TradeUpdate
         if not update_data.get('closed_at'):
             update_data['closed_at'] = datetime.now(timezone.utc)
 
-        instrument = db.query(Instrument).filter(Instrument.id == trade.instrument_id).first()
-        inst_dict = {"contract_size": instrument.contract_size, "pip_size": instrument.pip_size, "quote_ccy": instrument.quote_ccy}
+        instrument = db.query(Instrument).filter(
+            Instrument.id == trade.instrument_id
+        ).first()
+
+        inst_dict = {
+            "contract_size": instrument.contract_size,
+            "pip_size": instrument.pip_size,
+            "quote_ccy": instrument.quote_ccy
+        }
 
         # Calculate current open size by subtracting exited lots
         exits = db.query(TradeExecution).filter(
             TradeExecution.trade_id == trade.id,
             TradeExecution.execution_type == 'exit'
         ).all()
+
         total_exited = sum(float(e.size) for e in exits)
         current_open_size = float(trade.size) - total_exited
 
@@ -194,7 +214,10 @@ def update_trade(db: Session, user_id: int, trade_id: int, trade_in: TradeUpdate
         # Accumulate the previously booked P&L and deduct fees
         already_booked_pnl = float(trade.pnl_realized or 0)
         final_chunk_pnl = pnl_data['pnl_realized']
-        update_data['pnl_realized'] = already_booked_pnl + final_chunk_pnl - current_fees
+
+        update_data['pnl_realized'] = (
+            already_booked_pnl + final_chunk_pnl - current_fees
+        )
 
         exit_execution = TradeExecution(
             trade_id=trade.id,
@@ -203,16 +226,71 @@ def update_trade(db: Session, user_id: int, trade_id: int, trade_in: TradeUpdate
             size=current_open_size,
             executed_at=update_data['closed_at']
         )
+
         db.add(exit_execution)
-        db.flush() # Ensure the new execution is available for weighted R-multiple
+        db.flush()  # Ensure the new execution is available for weighted R-multiple
 
         if trade.stop_loss:
             update_data['r_multiple'] = _calculate_weighted_r_multiple(db, trade)
 
+    # FIX FOR BUG 28: Re-evaluate rule violations if core financial details changed
+    re_eval_needed = any(
+        k in update_data
+        for k in ['entry_price', 'size', 'direction', 'stop_loss', 'take_profit']
+    )
+
     for key, value in update_data.items():
         setattr(trade, key, value)
 
-    log_service.write(db, action="trade.update", user_id=user_id, entity_type="trade", entity_id=trade.id)
+    if re_eval_needed and trade.status == 'open':
+        # Reconstruct the current trade state to pass to the evaluator
+        from app.schemas.trade import TradeCreate
+
+        checks_data = []
+        for c in trade.condition_checks:
+            checks_data.append({
+                "rule_id": c.rule_id,
+                "passed": c.passed
+            })
+
+        current_state = TradeCreate(
+            strategy_id=trade.strategy_id,
+            instrument_id=trade.instrument_id,
+            direction=trade.direction,
+            entry_price=float(trade.entry_price),
+            size=float(trade.size),
+            stop_loss=float(trade.stop_loss) if trade.stop_loss else None,
+            take_profit=float(trade.take_profit) if trade.take_profit else None,
+            condition_checks=checks_data
+        )
+
+        new_violations = _evaluate_rule_violations(
+            db,
+            trade.strategy_id,
+            current_state
+        )
+
+        if trade.rule_violations != new_violations:
+            trade.rule_violations = new_violations
+
+            if new_violations:
+                violation_text = " | ".join(new_violations.values())
+
+                alert_service.create_alert(
+                    db,
+                    user_id,
+                    'rule_violation',
+                    f"Trade edit triggered rule breach: {violation_text}",
+                    trade.id
+                )
+
+    log_service.write(
+        db,
+        action="trade.update",
+        user_id=user_id,
+        entity_type="trade",
+        entity_id=trade.id
+    )
 
     db.commit()
     db.refresh(trade)

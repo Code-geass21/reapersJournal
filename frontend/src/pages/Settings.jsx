@@ -92,7 +92,9 @@ export default function Settings() {
             await api.post('/users/me/avatar', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
-            alert('Avatar updated! Refresh the page to see changes.');
+            // FIX FOR BUG 27: Dispatch event to notify the Sidebar
+            window.dispatchEvent(new Event('avatar-updated'));
+            alert('Avatar updated!');
         } catch (err) {
             alert('Avatar upload failed');
         } finally {

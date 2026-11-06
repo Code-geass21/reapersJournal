@@ -15,6 +15,9 @@ class UserOut(BaseModel):
     display_name: Optional[str] = None
     is_active: bool
 
+    # FIX FOR BUG 27: Add this line so the frontend receives the avatar ID
+    avatar_attachment_id: Optional[int] = None
+
     class Config:
         from_attributes = True
 

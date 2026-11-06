@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useTheme } from '../hooks/useTheme';
@@ -8,25 +9,54 @@ export default function Sidebar() {
     const [profile, setProfile] = useState(null);
     const [avatarUrl, setAvatarUrl] = useState(null);
 
-    // Fetch user profile and avatar on mount
-    useEffect(() => {
-        const loadProfile = async () => {
-            try {
-                if (!localStorage.getItem('token')) return;
-                const res = await api.get('/users/me');
-                setProfile(res.data);
+    // FIX FOR BUG 27: Extract loading logic into a reusable function
+    const loadProfile = async () => {
+        try {
+            if (!localStorage.getItem('token')) return;
 
-                if (res.data.avatar_attachment_id) {
-                    const avatarRes = await api.get(`/attachments/${res.data.avatar_attachment_id}/file`, { responseType: 'blob' });
-                    setAvatarUrl(URL.createObjectURL(avatarRes.data));
+            const res = await api.get('/users/me');
+            setProfile(res.data);
+
+            if (res.data.avatar_attachment_id) {
+                // Ensure we don't cache the old image by appending a timestamp query
+                const timestamp = new Date().getTime();
+
+                const avatarRes = await api.get(
+                    `/attachments/${res.data.avatar_attachment_id}/file?t=${timestamp}`,
+                    { responseType: 'blob' }
+                );
+
+                // Cleanup old object URL to prevent memory leaks
+                if (avatarUrl) {
+                    URL.revokeObjectURL(avatarUrl);
                 }
-            } catch (err) {
-                console.error("Failed to load profile", err);
+
+                setAvatarUrl(URL.createObjectURL(avatarRes.data));
             }
-        };
+        } catch (err) {
+            console.error("Failed to load profile", err);
+        }
+    };
+
+    useEffect(() => {
         loadProfile();
+
+        // Listen for a custom event emitted by the Settings page
+        const handleAvatarUpdate = () => {
+            loadProfile();
+        };
+
+        window.addEventListener('avatar-updated', handleAvatarUpdate);
+
+        return () => {
+            window.removeEventListener('avatar-updated', handleAvatarUpdate);
+
+            // Final cleanup of the blob URL
+            if (avatarUrl) URL.revokeObjectURL(avatarUrl);
+        };
     }, []);
 
+    // Keep linkStyle exactly as it is
     const linkStyle = ({ isActive }) => ({
         display: 'block',
         padding: '0.75rem 1rem',
@@ -51,15 +81,46 @@ export default function Sidebar() {
             boxSizing: 'border-box'
         }}>
         {/* Header with dynamic Avatar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem', padding: '0 0.5rem' }}>
+        <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            marginBottom: '2rem',
+            padding: '0 0.5rem'
+        }}>
         {avatarUrl ? (
-            <img src={avatarUrl} alt="Avatar" style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} />
+            <img
+            src={avatarUrl}
+            alt="Avatar"
+            style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                objectFit: 'cover'
+            }}
+            />
         ) : (
-            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f8fafc', fontWeight: 'bold' }}>
-            {profile?.display_name?.charAt(0) || profile?.username?.charAt(0) || 'U'}
-            </div>
+            <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                background: '#334155',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#f8fafc',
+                fontWeight: 'bold'
+            }}>
+            {profile?.display_name?.charAt(0) ||
+                profile?.username?.charAt(0) || 'U'}
+                </div>
         )}
-        <h2 style={{ color: '#22d3ee', margin: 0, fontSize: '1.25rem' }}>
+
+        <h2 style={{
+            color: '#22d3ee',
+            margin: 0,
+            fontSize: '1.25rem'
+        }}>
         Reaper's Journal
         </h2>
         </div>
@@ -81,7 +142,13 @@ export default function Sidebar() {
             alignItems: 'center',
             justifyContent: 'space-between'
         }}>
-        <span style={{ color: '#94a3b8', fontSize: '0.875rem' }}>Theme</span>
+        <span style={{
+            color: '#94a3b8',
+            fontSize: '0.875rem'
+        }}>
+        Theme
+        </span>
+
         <button
         onClick={toggleTheme}
         style={{
