@@ -1,3 +1,5 @@
+# backend/app/jobs/fetch_prices.py
+
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
 import logging
@@ -11,13 +13,8 @@ from app.providers import price_twelvedata
 logger = logging.getLogger(__name__)
 
 def run():
-    """
-    Job to fetch current prices for all symbols that have open trades,
-    PLUS the USD conversion pairs for active quote currencies.
-    """
     db: Session = SessionLocal()
     try:
-        # 1. Fetch symbols for OPEN trades
         open_symbols_query = (
             db.query(Instrument.provider_symbol)
             .join(Trade, Trade.instrument_id == Instrument.id)
@@ -26,12 +23,10 @@ def run():
         )
         symbols = [row[0] for row in open_symbols_query.all()]
 
-        # --- BUG 13 FIX: Exit immediately if there are no open trades ---
         if not symbols:
             logger.info("No open trades found. Skipping price fetch to save API quota.")
             return
 
-        # 2. Fetch unique quote currencies across OPEN trades ONLY
         open_quote_currencies_query = (
             db.query(Instrument.quote_ccy)
             .join(Trade, Trade.instrument_id == Instrument.id)
@@ -39,11 +34,18 @@ def run():
             .distinct()
         )
 
-        # 3. Append the required conversion pairs
+        # FIX FOR BUG 45: Determine if the quote currency requires an inverted canonical pair.
+        # Major currencies EUR, GBP, AUD, and NZD are quoted as the base against USD.
+        inverted_pairs = {'EUR', 'GBP', 'AUD', 'NZD'}
+
         for row in open_quote_currencies_query.all():
             quote_ccy = row[0].strip().upper()
             if quote_ccy != 'USD':
-                conversion_pair = f"USD{quote_ccy}=X"
+                if quote_ccy in inverted_pairs:
+                    conversion_pair = f"{quote_ccy}USD=X"
+                else:
+                    conversion_pair = f"USD{quote_ccy}=X"
+
                 if conversion_pair not in symbols:
                     symbols.append(conversion_pair)
 

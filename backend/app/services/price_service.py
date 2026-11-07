@@ -7,7 +7,9 @@ from app.models.instrument import Instrument
 from app.models.price import PriceCache
 from app.services import pnl_service
 from app.config import settings
+import logging
 
+logger = logging.getLogger(__name__)
 
 def get_open_trade_prices(db: Session, user_id: int) -> List[Dict[str, Any]]:
     """Calculates cached prices, unrealized P&L, and staleness for a user's open trades."""
@@ -30,12 +32,10 @@ def get_open_trade_prices(db: Session, user_id: int) -> List[Dict[str, Any]]:
 
         current_price = float(cached.price)
 
-        # Calculate staleness
         fetched_at_utc = cached.fetched_at.replace(tzinfo=timezone.utc) if cached.fetched_at.tzinfo is None else cached.fetched_at
         age_seconds = (now - fetched_at_utc).total_seconds()
         is_stale = age_seconds > stale_threshold_seconds
 
-        # FIX FOR BUG 43: Calculate true open size by subtracting exited lots
         exits = db.query(TradeExecution).filter(
             TradeExecution.trade_id == trade.id,
             TradeExecution.execution_type == 'exit'
@@ -43,23 +43,34 @@ def get_open_trade_prices(db: Session, user_id: int) -> List[Dict[str, Any]]:
         total_exited = sum(float(e.size) for e in exits)
         current_open_size = float(trade.size) - total_exited
 
-        # Calculate unrealized P&L
         inst_dict = {"contract_size": instrument.contract_size, "pip_size": instrument.pip_size, "quote_ccy": instrument.quote_ccy}
-        pnl_data = pnl_service.calculate_pnl(
-            db=db,
-            direction=trade.direction,
-            entry_price=float(trade.entry_price),
-            exit_price=current_price,
-            size=current_open_size,  # <-- USE current_open_size HERE
-            instrument=inst_dict
-        )
+
+        # FIX FOR BUG 44: Gracefully catch the ValueError and return 0.0 for P&L
+        # rather than crashing the entire /prices/open endpoint.
+        unrealized_pips = 0.0
+        unrealized_pnl = 0.0
+        try:
+            pnl_data = pnl_service.calculate_pnl(
+                db=db,
+                direction=trade.direction,
+                entry_price=float(trade.entry_price),
+                exit_price=current_price,
+                size=current_open_size,
+                instrument=inst_dict
+            )
+            unrealized_pips = pnl_data['pips']
+            unrealized_pnl = pnl_data['pnl_realized']
+        except ValueError as e:
+            logger.warning(f"Could not calculate unrealized P&L for trade {trade.id}: {e}")
+            # Ensure the UI marks it as stale if we can't compute P&L
+            is_stale = True
 
         results.append({
             "trade_id": trade.id,
             "provider_symbol": instrument.provider_symbol,
             "current_price": current_price,
-            "unrealized_pips": pnl_data['pips'],
-            "unrealized_pnl": pnl_data['pnl_realized'],
+            "unrealized_pips": unrealized_pips,
+            "unrealized_pnl": unrealized_pnl,
             "is_stale": is_stale,
             "fetched_at": fetched_at_utc,
             "stale_threshold_secs": stale_threshold_seconds
