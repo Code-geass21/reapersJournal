@@ -2,11 +2,12 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 from typing import List, Dict, Any
 
-from app.models.trade import Trade
+from app.models.trade import Trade, TradeExecution
 from app.models.instrument import Instrument
 from app.models.price import PriceCache
 from app.services import pnl_service
 from app.config import settings
+
 
 def get_open_trade_prices(db: Session, user_id: int) -> List[Dict[str, Any]]:
     """Calculates cached prices, unrealized P&L, and staleness for a user's open trades."""
@@ -34,6 +35,14 @@ def get_open_trade_prices(db: Session, user_id: int) -> List[Dict[str, Any]]:
         age_seconds = (now - fetched_at_utc).total_seconds()
         is_stale = age_seconds > stale_threshold_seconds
 
+        # FIX FOR BUG 43: Calculate true open size by subtracting exited lots
+        exits = db.query(TradeExecution).filter(
+            TradeExecution.trade_id == trade.id,
+            TradeExecution.execution_type == 'exit'
+        ).all()
+        total_exited = sum(float(e.size) for e in exits)
+        current_open_size = float(trade.size) - total_exited
+
         # Calculate unrealized P&L
         inst_dict = {"contract_size": instrument.contract_size, "pip_size": instrument.pip_size, "quote_ccy": instrument.quote_ccy}
         pnl_data = pnl_service.calculate_pnl(
@@ -41,7 +50,7 @@ def get_open_trade_prices(db: Session, user_id: int) -> List[Dict[str, Any]]:
             direction=trade.direction,
             entry_price=float(trade.entry_price),
             exit_price=current_price,
-            size=float(trade.size),
+            size=current_open_size,  # <-- USE current_open_size HERE
             instrument=inst_dict
         )
 
