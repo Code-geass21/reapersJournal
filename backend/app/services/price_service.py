@@ -52,7 +52,7 @@ def get_open_trade_prices(db: Session, user_id: int) -> List[Dict[str, Any]]:
             "unrealized_pips": pnl_data['pips'],
             "unrealized_pnl": pnl_data['pnl_realized'],
             "is_stale": is_stale,
-            "fetched_at": fetched_at_utc
+            "fetched_at": fetched_at_utc,
             "stale_threshold_secs": stale_threshold_seconds
         })
 
