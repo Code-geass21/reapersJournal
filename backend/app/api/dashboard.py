@@ -14,13 +14,11 @@ from app.services import performance_service
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
-
 @router.get("/performance", response_model=PerformanceStatsOut)
 def get_performance(
-    strategy_ids: Optional[str] = Query(
-        None,
-        description="Comma-separated strategy IDs"
-    ),
+    strategy_ids: Optional[str] = Query(None, description="Comma-separated strategy IDs"),
+    start_date: Optional[str] = Query(None),  # <-- ADDED
+    end_date: Optional[str] = Query(None),    # <-- ADDED
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -36,7 +34,6 @@ def get_performance(
 
             if not strat_ids or any(sid <= 0 for sid in strat_ids):
                 raise ValueError
-
         except ValueError:
             raise HTTPException(
                 status_code=400,
@@ -46,7 +43,9 @@ def get_performance(
     stats = performance_service.get_performance_stats(
         db,
         current_user.id,
-        strat_ids
+        strat_ids,
+        start_date,
+        end_date
     )
 
     return stats

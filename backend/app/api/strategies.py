@@ -333,7 +333,6 @@ def delete_strategy_deposit(
 
 
 # --- ADDED: Strategy Balance Endpoint ---
-
 @router.get("/{strategy_id}/balance")
 def get_strategy_balance(
     strategy_id: int,
@@ -347,9 +346,10 @@ def get_strategy_balance(
     deposits = db.query(StrategyDeposit).filter(StrategyDeposit.strategy_id == strategy_id).all()
     net_funding = sum([float(d.amount) if d.kind == 'deposit' else -float(d.amount) for d in deposits])
 
+    # FIX FOR BUG 34: Removed Trade.status == 'closed'
+    # to include P&L booked from open partial exits.
     realized_pnl = db.query(func.sum(Trade.pnl_realized)).filter(
-        Trade.strategy_id == strategy_id,
-        Trade.status == 'closed'
+        Trade.strategy_id == strategy_id
     ).scalar() or 0.0
 
     return {

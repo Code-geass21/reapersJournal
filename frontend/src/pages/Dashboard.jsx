@@ -1,3 +1,5 @@
+// frontend/src/pages/Dashboard.jsx
+
 import { useState, useEffect } from 'react';
 import api from '../utils/api';
 import {
@@ -13,9 +15,10 @@ export default function Dashboard() {
     const [error, setError] = useState('');
 
     const [selectedStrats, setSelectedStrats] = useState([]);
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
     const [isReady, setIsReady] = useState(false);
 
-    // 1. Fetch user preferences once to get default strategies
     useEffect(() => {
         api.get('/settings/preferences')
         .then(res => {
@@ -26,20 +29,27 @@ export default function Dashboard() {
         .finally(() => setIsReady(true));
     }, []);
 
-    // 2. Fetch stats dynamically whenever the selected strategies change
     useEffect(() => {
         if (!isReady) return;
 
         const fetchPerformance = async () => {
             setLoadingStats(true);
             try {
-                let url = '/dashboard/performance';
-    if (selectedStrats.length > 0) {
-        url += `?strategy_ids=${selectedStrats.join(',')}`;
-    }
-    const res = await api.get(url);
-    setStats(res.data);
-    setError('');
+                let url = '/dashboard/performance?';
+                const params = new URLSearchParams();
+
+                if (selectedStrats.length > 0) params.append('strategy_ids', selectedStrats.join(','));
+
+                if (startDate) params.append('start_date', new Date(startDate).toISOString());
+                if (endDate) {
+                    const end = new Date(endDate);
+                    end.setHours(23, 59, 59, 999);
+                    params.append('end_date', end.toISOString());
+                }
+
+                const res = await api.get(url + params.toString());
+                setStats(res.data);
+                setError('');
             } catch (err) {
                 setError('Failed to load performance statistics.');
                 console.error(err);
@@ -49,7 +59,7 @@ export default function Dashboard() {
         };
 
         fetchPerformance();
-    }, [selectedStrats, isReady]);
+    }, [selectedStrats, startDate, endDate, isReady]);
 
     if (loadingStats && !stats) return <div style={{ padding: '2rem' }}>Loading Dashboard...</div>;
     if (error) return <div style={{ padding: '2rem', color: '#ef4444' }}>{error}</div>;
@@ -58,9 +68,9 @@ export default function Dashboard() {
         const isPositive = parseFloat(value) >= 0;
         const color = isCurrency ? (isPositive ? '#22c55e' : '#ef4444') : '#f8fafc';
         return (
-            <div style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '8px', flex: 1 }}>
+            <div style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '8px', flex: 1, minWidth: '150px' }}>
             <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '0.875rem', color: '#94a3b8', textTransform: 'uppercase' }}>{title}</h3>
-            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: color }}>{prefix}{value}{suffix}</div>
+            <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: color }}>{prefix}{value}{suffix}</div>
             </div>
         );
     };
@@ -84,20 +94,39 @@ export default function Dashboard() {
         <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
         <h2 style={{ margin: 0, color: '#f8fafc' }}>Performance Dashboard</h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: '#1e293b', padding: '0.75rem', borderRadius: '8px' }}>
-        <span style={{ fontSize: '0.875rem', color: '#94a3b8' }}>Filter:</span>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: '#1e293b', padding: '0.75rem', borderRadius: '8px', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '0.875rem', color: '#94a3b8' }}>Strategies:</span>
         <StrategyPicker selectedIds={selectedStrats} onChange={setSelectedStrats} />
+
+        <div style={{ width: '1px', height: '24px', background: '#334155', margin: '0 0.5rem' }} />
+
+        <span style={{ fontSize: '0.875rem', color: '#94a3b8' }}>Dates:</span>
+        <input
+        type="date"
+        value={startDate}
+        onChange={e => setStartDate(e.target.value)}
+        style={{ background: '#0f172a', color: '#f8fafc', border: '1px solid #334155', borderRadius: '4px', padding: '0.25rem 0.5rem' }}
+        />
+        <span style={{ color: '#94a3b8' }}>to</span>
+        <input
+        type="date"
+        value={endDate}
+        onChange={e => setEndDate(e.target.value)}
+        style={{ background: '#0f172a', color: '#f8fafc', border: '1px solid #334155', borderRadius: '4px', padding: '0.25rem 0.5rem' }}
+        />
         </div>
         </div>
 
         {stats && (
             <>
             <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '3rem' }}>
-            <StatCard title="Total Realized P&L" value={stats.total_pnl} prefix={stats.total_pnl > 0 ? '+' : ''} isCurrency={true} />
+            <StatCard title="Net Funding" value={stats.net_funding} isCurrency={true} />
+            <StatCard title="Realized P&L" value={stats.total_pnl} prefix={stats.total_pnl > 0 ? '+' : ''} isCurrency={true} />
             <StatCard title="Win Rate" value={stats.win_rate} suffix="%" />
-            <StatCard title="Profit Factor" value={stats.profit_factor} />
+            <StatCard title="Profit Factor" value={stats.profit_factor !== null ? stats.profit_factor : '∞'} />
             <StatCard title="Expectancy" value={stats.expectancy} prefix="$" />
-            <StatCard title="Closed Trades" value={stats.total_trades} />
+            <StatCard title="Max Drawdown" value={stats.max_drawdown} prefix="-$" />
             </div>
 
             <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'stretch' }}>
@@ -116,7 +145,7 @@ export default function Dashboard() {
                 </ResponsiveContainer>
                 </div>
             ) : (
-                <p style={{ color: '#94a3b8', textAlign: 'center', marginTop: '4rem' }}>Not enough closed trades to generate an equity curve.</p>
+                <p style={{ color: '#94a3b8', textAlign: 'center', marginTop: '4rem' }}>No data to generate an equity curve for this period.</p>
             )}
             </div>
             <NewsPanel />
