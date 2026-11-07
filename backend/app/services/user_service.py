@@ -7,14 +7,15 @@ from app.services import log_service
 def update_profile(db: Session, user: User, display_name: str) -> User:
     before_state = {"display_name": user.display_name}
     user.display_name = display_name
-    db.commit()
-    db.refresh(user)
+    db.flush() # <-- CHANGE from commit() to flush()
 
     log_service.write(
         db, action="user.update_profile", user_id=user.id,
         entity_type="user", entity_id=user.id,
         before=before_state, after={"display_name": display_name}
     )
+    db.commit() # <-- COMMIT BOTH HERE
+    db.refresh(user)
     return user
 
 def update_password(db: Session, user: User, current_password: str, new_password: str):
@@ -25,9 +26,10 @@ def update_password(db: Session, user: User, current_password: str, new_password
         )
 
     user.password_hash = get_password_hash(new_password)
-    db.commit()
+    db.flush() # <-- CHANGE from commit() to flush()
 
     log_service.write(
         db, action="user.update_password", user_id=user.id,
         entity_type="user", entity_id=user.id
     )
+    db.commit() # <-- COMMIT BOTH HERE

@@ -157,6 +157,8 @@ def get_strategy_rules(
     return db.query(StrategyRule).filter(StrategyRule.strategy_id == strategy_id).order_by(StrategyRule.sort_order).all()
 
 
+# backend/app/api/strategies.py
+
 @router.post("/{strategy_id}/rules", response_model=StrategyRuleOut)
 def create_strategy_rule(
     strategy_id: int,
@@ -168,7 +170,6 @@ def create_strategy_rule(
     if not strategy:
         raise HTTPException(status_code=404, detail="Strategy not found")
 
-    # Clean the JSON payload
     clean_params = sanitize_rule_params(rule_in.rule_type, rule_in.params)
 
     new_rule = StrategyRule(
@@ -179,6 +180,8 @@ def create_strategy_rule(
     db.add(new_rule)
     db.commit()
     db.refresh(new_rule)
+
+    return new_rule  # <-- ADD THIS LINE
 
 
 # --- ADDED: Update Rule ---

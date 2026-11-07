@@ -57,14 +57,13 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(RequestIDMiddleware)
 
-# --- BATCH 5: Global Exception Handler ---
+# backend/app/main.py
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """Catches all unhandled 500 errors and writes the traceback to app_logs."""
     request_id = getattr(request.state, "request_id", "unknown")
     error_trace = traceback.format_exc()
 
-    # Try to grab the DB session to log the error
     db: Session = SessionLocal()
     try:
         log_service.write(
@@ -75,6 +74,7 @@ async def global_exception_handler(request: Request, exc: Exception):
             error_text=error_trace,
             request_id=request_id
         )
+        db.commit() # <-- ADD THIS LINE to save the error log
     except Exception as log_exc:
         print(f"CRITICAL: Failed to write to app_logs during exception handling: {log_exc}")
     finally:

@@ -1,16 +1,16 @@
-from fastapi import APIRouter, Depends, UploadFile, File, status
-from sqlalchemy.orm import Session
-from app.database import get_db
-from app.api.deps import get_current_user
-from app.models.user import User
-from app.schemas.user import UserOut
-from app.services import user_service, attachment_service
-from pydantic import BaseModel
+import os
 from typing import List
-from app.api.deps import get_admin_user
-from app.utils.security import get_password_hash
-from fastapi import HTTPException
-from fastapi import APIRouter, Depends, UploadFile, File, Form, status
+
+from fastapi import APIRouter, Depends, UploadFile, File, Form, status, HTTPException
+from sqlalchemy.orm import Session
+from pydantic import BaseModel
+
+from app.database import get_db
+from app.api.deps import get_current_user, get_admin_user
+from app.models.user import User
+from app.models.attachment import Attachment
+from app.schemas.user import UserOut, UserCreate, Token
+from app.services import user_service, attachment_service, log_service
 from app.utils.security import get_password_hash, verify_password
 
 
