@@ -6,15 +6,18 @@ logger = logging.getLogger(__name__)
 
 def create_alert(db: Session, user_id: int, kind: str, message: str, trade_id: int = None) -> bool:
     """
-    Creates an actionable alert for the user. Returns True if created, False if a duplicate is already pending.
+    Creates an actionable alert for the user.
+    Returns True if created, False if a duplicate is already pending.
     """
     try:
         if trade_id:
-            # --- BUG 6 FIX: Prevent spamming by checking ALL statuses ---
-            # If the user already dismissed or actioned it, do not recreate it.
+            # FIX FOR BUG 38: Only deduplicate against ACTIVE alerts.
+            # If the user previously dismissed an SL hit, and it hits again,
+            # they need a new alert.
             existing = db.query(Alert).filter(
                 Alert.trade_id == trade_id,
-                Alert.kind == kind
+                Alert.kind == kind,
+                Alert.status.in_(['new', 'seen'])
             ).first()
 
             if existing:

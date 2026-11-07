@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models.trade import Trade
@@ -6,6 +7,7 @@ from app.models.instrument import Instrument
 from app.models.price import PriceCache
 from app.models.alert import Alert
 from app.services import alert_service
+from app.config import settings # ADD THIS for the interval setting
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +17,13 @@ def run():
     and generate alerts if a target is touched.
     """
     db: Session = SessionLocal()
+    now = datetime.now(timezone.utc)
+
+    # FIX FOR BUG 38: Define a staleness threshold (3x the refresh interval)
+    stale_threshold_seconds = settings.price_refresh_secs * 3
+
     try:
-        # --- BUG 6 FIX: Auto-dismiss lingering SL/TP alerts for trades that are no longer open ---
+        # Auto-dismiss lingering SL/TP alerts for trades that are no longer open
         lingering_alerts = db.query(Alert).filter(
             Alert.status.in_(['new', 'seen']),
             Alert.kind.in_(['sl_hit', 'tp_hit']),
@@ -44,6 +51,14 @@ def run():
         for trade, instrument in open_trades:
             cached = db.query(PriceCache).filter(PriceCache.provider_symbol == instrument.provider_symbol).first()
             if not cached or cached.price is None:
+                continue
+
+            # FIX FOR BUG 38: Do not trigger alerts on dead data
+            fetched_at_utc = cached.fetched_at.replace(tzinfo=timezone.utc) if cached.fetched_at.tzinfo is None else cached.fetched_at
+            age_seconds = (now - fetched_at_utc).total_seconds()
+
+            if age_seconds > stale_threshold_seconds:
+                logger.debug(f"Skipping alert check for {instrument.symbol}; price is stale ({age_seconds:.0f}s old).")
                 continue
 
             current = float(cached.price)

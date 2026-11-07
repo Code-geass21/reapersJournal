@@ -5,14 +5,27 @@ import shutil
 import logging
 from sqlalchemy.orm import Session
 from app.utils.table_registry import BACKUP_REGISTRY
-# --- BUG 17 FIX: Import models required for Avatar profile remapping ---
 from app.models.user import User
 from app.models.attachment import Attachment
+from app.models.instrument import Instrument
+from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
 
 UPLOAD_DIR = "/app/uploads"
 TEMP_DIR = "/app/backups/temp_restore"
+
+def secure_extract(zip_ref, target_dir):
+    """Safely extracts a zip file, preventing path traversal attacks."""
+    for member in zip_ref.infolist():
+        # Prevent absolute paths or path traversal attacks (e.g. '../../etc/passwd')
+        if member.filename.startswith('/') or '..' in member.filename:
+            continue
+
+        target_path = os.path.join(target_dir, member.filename)
+        # Ensure the extracted path stays within the intended target directory
+        if os.path.commonprefix([target_path, target_dir]) == target_dir:
+            zip_ref.extract(member, target_dir)
 
 def process_restore(db: Session, user_id: int, zip_filepath: str):
     if os.path.exists(TEMP_DIR):
@@ -20,33 +33,11 @@ def process_restore(db: Session, user_id: int, zip_filepath: str):
     os.makedirs(TEMP_DIR, exist_ok=True)
 
     try:
-        # 1. Unzip the file
+        # 1. Securely unzip the file (Mitigates Path Traversal)
         with zipfile.ZipFile(zip_filepath, 'r') as zip_ref:
-            zip_ref.extractall(TEMP_DIR)
+            secure_extract(zip_ref, TEMP_DIR)
 
-        # 2. Clear existing USER SPECIFIC data backwards to avoid FK constraint errors
-        for table_def in reversed(BACKUP_REGISTRY):
-            if table_def["name"] in ["users", "markets", "instruments"]:
-                continue
-
-            query = db.query(table_def["model"])
-            filtered_query = table_def["user_filter"](query, user_id)
-
-            # Fetch the objects first, then delete them to avoid the .join() error
-            objects_to_delete = filtered_query.all()
-            for obj in objects_to_delete:
-                # --- BUG 17 FIX: Delete physical files before dropping the DB row to prevent orphans ---
-                if table_def["name"] == "attachments":
-                    file_path = os.path.join(UPLOAD_DIR, getattr(obj, 'path', ''))
-                    if getattr(obj, 'path', None) and os.path.exists(file_path):
-                        try:
-                            os.remove(file_path)
-                        except Exception as e:
-                            logger.warning(f"Could not remove old file {file_path}: {e}")
-
-                db.delete(obj)
-
-        # 3. Insert all data forwards with ID mapping
+        # Build an ID map for ALL tables to prevent Foreign Key hijacking
         id_map = {
             "strategies": {},
             "strategy_rules": {},
@@ -54,6 +45,36 @@ def process_restore(db: Session, user_id: int, zip_filepath: str):
             "instruments": {}
         }
 
+        # Pre-map instruments based on the existing DB to prevent instrument injection
+        all_instruments = db.query(Instrument).all()
+        symbol_to_id = {inst.symbol: inst.id for inst in all_instruments}
+
+        # 2. CLEAR DATA AND INSERT NEW DATA IN A SINGLE TRANSACTION
+        # (Mitigates the delete-before-commit data loss risk)
+
+        # A. Clear existing USER SPECIFIC data backwards to avoid FK constraint errors
+        for table_def in reversed(BACKUP_REGISTRY):
+            if table_def["name"] in ["users", "markets", "instruments"]:
+                continue
+
+            query = db.query(table_def["model"])
+            filtered_query = table_def["user_filter"](query, user_id)
+            objects_to_delete = filtered_query.all()
+
+            for obj in objects_to_delete:
+                if table_def["name"] == "attachments":
+                    file_path = os.path.join(UPLOAD_DIR, getattr(obj, 'path', ''))
+                    if getattr(obj, 'path', None) and os.path.exists(file_path):
+                        try:
+                            os.remove(file_path)
+                        except Exception as e:
+                            logger.warning(f"Could not remove old file {file_path}: {e}")
+                db.delete(obj)
+
+        # Flush the deletions so the DB state is ready for inserts, but DO NOT commit yet.
+        db.flush()
+
+        # B. Insert all data forwards with strict ID mapping
         for table_def in BACKUP_REGISTRY:
             if table_def["name"] in ["users", "markets"]:
                 continue
@@ -74,7 +95,11 @@ def process_restore(db: Session, user_id: int, zip_filepath: str):
                         if 'user_id' in row_data:
                             row_data['user_id'] = user_id
 
-                        # --- Map Foreign Keys ---
+                        # Security: Strip password_hash if it exists in the payload
+                        if 'password_hash' in row_data:
+                            del row_data['password_hash']
+
+                        # --- Strict Foreign Key Mapping ---
                         if 'strategy_id' in row_data and row_data['strategy_id'] in id_map["strategies"]:
                             row_data['strategy_id'] = id_map["strategies"][row_data['strategy_id']]
 
@@ -84,7 +109,6 @@ def process_restore(db: Session, user_id: int, zip_filepath: str):
                         if 'trade_id' in row_data and row_data['trade_id'] in id_map["trades"]:
                             row_data['trade_id'] = id_map["trades"][row_data['trade_id']]
 
-                        # --- BUG 17 FIX: Remap ownership of both screenshots and avatars ---
                         if table_def["name"] == "attachments":
                             if row_data.get("owner_type") == "trade":
                                 if 'owner_id' in row_data and row_data['owner_id'] in id_map["trades"]:
@@ -92,31 +116,35 @@ def process_restore(db: Session, user_id: int, zip_filepath: str):
                             elif row_data.get("owner_type") == "avatar":
                                 row_data['owner_id'] = user_id
 
-                        # For instruments, we check the symbol string instead of trusting the old ID
+                        # Map instrument IDs safely by verifying the symbol against the DB
                         if table_def["name"] == "instruments":
-                            existing_inst = db.query(table_def["model"]).filter(
-                                table_def["model"].symbol == row_data.get('symbol')
-                            ).first()
-
-                            if existing_inst:
+                            symbol = row_data.get('symbol')
+                            if symbol in symbol_to_id:
                                 if old_id:
-                                    id_map["instruments"][old_id] = existing_inst.id
-                                continue # Skip inserting duplicate instruments
+                                    id_map["instruments"][old_id] = symbol_to_id[symbol]
+                            # We skip inserting new instruments during a user restore.
+                            # Instruments are global and should only be managed by admins.
+                            continue
 
-                        # Apply the instrument ID mapping if this row is a Trade
-                        if 'instrument_id' in row_data and row_data['instrument_id'] in id_map["instruments"]:
-                            row_data['instrument_id'] = id_map["instruments"][row_data['instrument_id']]
+                        # Apply the instrument ID mapping if this row relies on an instrument
+                        if 'instrument_id' in row_data:
+                            if row_data['instrument_id'] in id_map["instruments"]:
+                                row_data['instrument_id'] = id_map["instruments"][row_data['instrument_id']]
+                            else:
+                                # Reject rows that try to reference invalid or unmapped instruments
+                                raise HTTPException(
+                                    status_code=400,
+                                    detail=f"Restore failed: Cannot map instrument_id {row_data['instrument_id']}."
+                                )
 
-                        # Insert the record and force flush to get the new primary key
                         new_record = table_def["model"](**row_data)
                         db.add(new_record)
                         db.flush()
 
-                        # Store the mapping so child tables can find it
                         if old_id and table_def["name"] in id_map:
                             id_map[table_def["name"]][old_id] = new_record.id
 
-        # --- BUG 17 FIX: Sync the User's profile DB row to point to the newly restored Avatar file ---
+        # Sync the User's profile DB row to point to the newly restored Avatar file
         user = db.query(User).filter(User.id == user_id).first()
         if user:
             latest_avatar = db.query(Attachment).filter(
@@ -125,10 +153,10 @@ def process_restore(db: Session, user_id: int, zip_filepath: str):
             ).order_by(Attachment.created_at.desc()).first()
             user.avatar_attachment_id = latest_avatar.id if latest_avatar else None
 
-        # 4. Commit EVERYTHING safely in one transaction
+        # 3. Commit EVERYTHING safely in one atomic transaction
         db.commit()
 
-        # 5. Restore image files to the uploads directory
+        # 4. Restore image files to the uploads directory only after DB success
         uploads_source = os.path.join(TEMP_DIR, "uploads")
         if os.path.exists(uploads_source):
             for filename in os.listdir(uploads_source):

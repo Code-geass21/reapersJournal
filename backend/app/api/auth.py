@@ -6,13 +6,25 @@ from app.models.user import User
 from app.schemas.user import UserCreate, UserOut, Token
 from app.utils.security import get_password_hash, verify_password, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 from datetime import timedelta
+from app.models.setting import AppSetting
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
+
 @router.post("/register", response_model=UserOut)
 def register(user_in: UserCreate, db: Session = Depends(get_db)):
+    # FIX FOR BUG 35: Enforce global registration lock
+    registration_setting = db.query(AppSetting).filter(
+        AppSetting.key == 'allow_registration'
+    ).first()
+
     is_first_user = db.query(User).count() == 0
-    if not is_first_user:
+
+    # Allow registration if it's the very first user,
+    # OR if the global setting allows it.
+    allow_reg = (registration_setting and registration_setting.value == "true")
+
+    if not is_first_user and not allow_reg:
         raise HTTPException(status_code=403, detail="Open registration is disabled. Contact an administrator.")
 
     if db.query(User).filter(User.username == user_in.username).first() or \

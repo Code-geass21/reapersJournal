@@ -9,16 +9,26 @@ export default function LivePriceBadge({ liveData, isLong }) {
         );
     }
 
-    const { current_price, unrealized_pnl, unrealized_pips, is_stale } = liveData;
+    // FIX FOR BUG 8: Destructure the new threshold field
+    const { current_price, unrealized_pnl, is_stale, stale_threshold_secs } = liveData;
 
     // Determine color based on P&L
     const isProfitable = unrealized_pnl >= 0;
     const color = isProfitable ? '#22c55e' : '#ef4444';
     const bgColor = isProfitable ? '#22c55e20' : '#ef444420';
 
+    // Helper to format seconds into a readable string (e.g., 900s -> "15 minutes")
+    const formatStaleness = (secs) => {
+        if (!secs) return "Data is stale";
+        if (secs < 60) return `${secs} seconds`;
+        if (secs < 3600) return `${Math.floor(secs / 60)} minutes`;
+        return `${Math.floor(secs / 3600)} hours`;
+    };
+
     return (
         <span
-        title={is_stale ? "Data is older than 3 hours" : "Live Price"}
+        // FIX FOR BUG 8: Dynamic tooltip message
+        title={is_stale ? `Data is older than ${formatStaleness(stale_threshold_secs)}` : "Live Price"}
         style={{
             fontSize: '0.75rem',
             padding: '0.2rem 0.5rem',

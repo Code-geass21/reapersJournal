@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from app.models.trade import Trade, TradeConditionCheck, TradeExecution
 from app.models.instrument import Instrument
@@ -8,6 +9,7 @@ from app.models.strategy import Strategy, StrategyRule
 from app.schemas.trade import TradeCreate, TradeUpdate
 from app.services import pnl_service, log_service, alert_service
 from app.schemas.trade import TradeExecutionCreate
+
 
 def _evaluate_rule_violations(db: Session, strategy_id: int, trade_in: TradeCreate) -> dict:
     rules = db.query(StrategyRule).filter(StrategyRule.strategy_id == strategy_id).all()
@@ -296,16 +298,32 @@ def update_trade(db: Session, user_id: int, trade_id: int, trade_in: TradeUpdate
     db.refresh(trade)
     return trade
 
+
 def add_execution(db: Session, user_id: int, trade_id: int, exec_in: TradeExecutionCreate) -> Trade:
-    trade = db.query(Trade).filter(Trade.id == trade_id, Trade.user_id == user_id).first()
+    # FIX FOR BUG 30: Use with_for_update() to lock the row and prevent concurrent double-spends
+    trade = db.query(Trade).with_for_update().filter(
+        Trade.id == trade_id,
+        Trade.user_id == user_id
+    ).first()
+
     if not trade:
+        # If we failed to find it, rollback the lock attempt just to be safe
+        db.rollback()
         raise HTTPException(status_code=404, detail="Trade not found")
 
-    if trade.status == 'closed':
-        raise HTTPException(status_code=400, detail="Cannot add executions to a closed trade")
+    # FIX FOR BUG 30: Strictly reject cancelled trades as well as closed ones
+    if trade.status in ['closed', 'cancelled']:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"Cannot add executions to a {trade.status} trade")
 
     if exec_in.execution_type != 'exit':
+        db.rollback()
         raise HTTPException(status_code=400, detail="Only exit executions can be logged manually.")
+
+    # FIX FOR BUG 30: Ensure the execution price is valid
+    if exec_in.price <= 0:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Execution price must be strictly greater than 0.")
 
     # Calculate the true open size dynamically
     exits = db.query(TradeExecution).filter(
@@ -317,7 +335,8 @@ def add_execution(db: Session, user_id: int, trade_id: int, exec_in: TradeExecut
     current_open_size = float(trade.size) - total_exited
 
     if exec_in.size <= 0 or exec_in.size > current_open_size:
-        raise HTTPException(status_code=400, detail=f"Invalid size. Must be between 0.01 and {current_open_size}")
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"Invalid size. Must be between 0.01 and {current_open_size:.2f}")
 
     instrument = db.query(Instrument).filter(Instrument.id == trade.instrument_id).first()
     inst_dict = {"contract_size": instrument.contract_size, "pip_size": instrument.pip_size, "quote_ccy": instrument.quote_ccy}
@@ -336,25 +355,29 @@ def add_execution(db: Session, user_id: int, trade_id: int, exec_in: TradeExecut
     current_pnl = float(trade.pnl_realized or 0.0)
     trade.pnl_realized = current_pnl + pnl_data['pnl_realized']
 
-    # We DO NOT modify trade.size here anymore so the original entry size is preserved
+    # FIX FOR BUG 30: Honour client-provided executed_at if present, fallback to now
+    execution_time = exec_in.executed_at if exec_in.executed_at else datetime.now(timezone.utc)
 
     new_exec = TradeExecution(
         trade_id=trade.id,
         execution_type='exit',
         price=exec_in.price,
         size=exec_in.size,
-        executed_at=datetime.now(timezone.utc),
+        executed_at=execution_time,
         note=exec_in.note
     )
     db.add(new_exec)
-    db.flush() # Ensure the new execution is available for weighted R-multiple
+    db.flush()
 
-    new_open_size = current_open_size - exec_in.size
+    # FIX FOR BUG 37: Use Decimal for precision math on sizes
+    current_open_size_dec = Decimal(str(current_open_size))
+    exec_size_dec = Decimal(str(exec_in.size))
+    new_open_size_dec = current_open_size_dec - exec_size_dec
 
     # Auto-close the trade if the entire position is liquidated
-    if new_open_size <= 0.00001:  # Float math safety tolerance
+    if new_open_size_dec <= Decimal('0.00001'):
         trade.status = 'closed'
-        trade.closed_at = datetime.now(timezone.utc)
+        trade.closed_at = execution_time
         trade.exit_price = exec_in.price
 
         # Deduct total fees on the final close
@@ -365,6 +388,7 @@ def add_execution(db: Session, user_id: int, trade_id: int, exec_in: TradeExecut
 
     log_service.write(db, action="trade.add_execution", user_id=user_id, entity_type="trade", entity_id=trade.id)
 
+    # Committing releases the row lock
     db.commit()
     db.refresh(trade)
     return trade

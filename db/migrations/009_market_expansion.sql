@@ -6,8 +6,8 @@ ADD COLUMN IF NOT EXISTS option_type VARCHAR(4); -- 'CE' or 'PE'
 
 -- Seed and enable the new markets
 INSERT INTO markets (code, name, is_enabled) VALUES
-('IN_EQUITY', 'Indian Equity', TRUE),
-('IN_FUTURES', 'Indian Futures', TRUE),
-('IN_OPTIONS', 'Indian Options', TRUE),
-('CRYPTO', 'Cryptocurrency', TRUE)
-ON CONFLICT (code) DO UPDATE SET is_enabled = TRUE;
+('IN_EQUITY', 'Indian Equity', FALSE),
+('IN_FUTURES', 'Indian Futures', FALSE),
+('IN_OPTIONS', 'Indian Options', FALSE),
+('CRYPTO', 'Cryptocurrency', FALSE)
+ON CONFLICT (code) DO UPDATE SET is_enabled = FALSE;

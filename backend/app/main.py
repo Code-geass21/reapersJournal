@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy.orm import Session
+import contextvars
 
 from app.config import settings
 from app.migrate import run_migrations
@@ -26,6 +27,7 @@ from app.api.settings import router as settings_router
 from app.api.logs import router as logs_router
 from app.api.help import router as help_router
 from app.api.users import router as users_router
+from app.api.news import router as news_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -34,15 +36,24 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Reaper's Journal API", lifespan=lifespan)
 
+# FIX FOR BUG 32: Create a context variable to hold the request ID globally
+request_id_contextvar = contextvars.ContextVar("request_id", default="system")
+
 # --- BATCH 5: Request ID Middleware ---
 class RequestIDMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         request_id = str(uuid.uuid4())
         request.state.request_id = request_id
 
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = request_id
-        return response
+        # Set the context variable for the duration of this request
+        token = request_id_contextvar.set(request_id)
+
+        try:
+            response = await call_next(request)
+            response.headers["X-Request-ID"] = request_id
+            return response
+        finally:
+            request_id_contextvar.reset(token)
 
 app.add_middleware(RequestIDMiddleware)
 
@@ -89,6 +100,7 @@ app.include_router(settings_router, prefix="/api")
 app.include_router(logs_router, prefix="/api")
 app.include_router(help_router, prefix="/api")
 app.include_router(users_router, prefix="/api")
+app.include_router(news_router, prefix="/api")
 
 @app.get("/health")
 def health_check():

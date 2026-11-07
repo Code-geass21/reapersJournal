@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.config import settings
 from app.models.user import User
+from app.models.setting import AppSetting # FIX FOR BUG 35: Import setting model
 
-# This tells FastAPI where the frontend sends login requests
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
@@ -16,7 +16,6 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        # Decode the JWT to get the username
         payload = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
         username: str = payload.get("sub")
         if username is None:
@@ -24,13 +23,22 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     except JWTError:
         raise credentials_exception
 
-    # Fetch the full user object from the database
     user = db.query(User).filter(User.username == username).first()
     if user is None:
         raise credentials_exception
 
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is disabled")
+
+    # FIX FOR BUG 35: Check Maintenance Mode
+    maintenance_setting = db.query(AppSetting).filter(AppSetting.key == 'maintenance_mode').first()
+    if maintenance_setting and maintenance_setting.value == "true":
+        # If maintenance is on, only admins can proceed
+        if user.role != 'admin':
+            raise HTTPException(
+                status_code=503,
+                detail="System is currently in maintenance mode. Please try again later."
+            )
 
     return user
 

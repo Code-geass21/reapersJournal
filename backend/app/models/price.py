@@ -9,4 +9,4 @@ class PriceCache(Base):
     bid = Column(Numeric(15, 5))
     ask = Column(Numeric(15, 5))
     fetched_at = Column(DateTime(timezone=True), server_default=func.now())
-    source = Column(String(50), default="yfinance")
+    source = Column(String(50), default="twelvedata")

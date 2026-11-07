@@ -10,3 +10,4 @@ class OpenTradePriceOut(BaseModel):
     unrealized_pnl: float
     is_stale: bool
     fetched_at: datetime
+    stale_threshold_secs: int
