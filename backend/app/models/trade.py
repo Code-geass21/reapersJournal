@@ -19,6 +19,7 @@ class Trade(Base):
     size = Column(Numeric(15, 2), nullable=False)
 
     stop_loss = Column(Numeric(15, 5))
+    initial_stop_loss = Column(Numeric(15, 5))
     take_profit = Column(Numeric(15, 5))
 
     opened_at = Column(DateTime(timezone=True), server_default=func.now())

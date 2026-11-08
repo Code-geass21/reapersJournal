@@ -58,6 +58,7 @@ class TradeUpdate(BaseModel):
     entry_price: Optional[float] = None
     size: Optional[float] = None
     stop_loss: Optional[float] = None
+    initial_stop_loss: Optional[float] = None
     take_profit: Optional[float] = None
     closed_at: Optional[datetime] = None
     exit_price: Optional[float] = None
