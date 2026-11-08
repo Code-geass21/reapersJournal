@@ -1,9 +1,9 @@
 import os
-from typing import List
+from typing import List, Literal
 
 from fastapi import APIRouter, Depends, UploadFile, File, Form, status, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field
 
 from app.database import get_db
 from app.api.deps import get_current_user, get_admin_user
@@ -14,28 +14,35 @@ from app.services import user_service, attachment_service, log_service
 from app.utils.security import get_password_hash, verify_password
 
 
+# FIX FOR BUG 65: Enforce strict schema validation
 class AdminUserCreate(BaseModel):
-    username: str
-    email: str
-    password: str
-    role: str = "user"
+    username: str = Field(..., min_length=3)
+    email: EmailStr
+    password: str = Field(..., min_length=8, max_length=72)
+    role: Literal['admin', 'user'] = "user"
+
 
 class AdminUserUpdate(BaseModel):
     is_active: bool
-    role: str
+    role: Literal['admin', 'user']
+
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
+
 class ProfileUpdate(BaseModel):
     display_name: str
+
 
 class PasswordUpdate(BaseModel):
     current_password: str
     new_password: str
 
+
 @router.get("/me", response_model=UserOut)
 def get_my_profile(current_user: User = Depends(get_current_user)):
     return current_user
+
 
 @router.put("/me", response_model=UserOut)
 def update_my_profile(
@@ -44,6 +51,7 @@ def update_my_profile(
     current_user: User = Depends(get_current_user)
 ):
     return user_service.update_profile(db, current_user, profile_data.display_name)
+
 
 @router.put("/me/password")
 def update_my_password(
@@ -57,6 +65,7 @@ def update_my_password(
         password_data.new_password
     )
     return {"detail": "Password updated successfully"}
+
 
 @router.post("/me/avatar", response_model=UserOut)
 def upload_my_avatar(
@@ -75,10 +84,12 @@ def upload_my_avatar(
     db.refresh(current_user)
     return current_user
 
+
 @router.get("/", response_model=List[UserOut])
 def get_all_users(db: Session = Depends(get_db), admin: User = Depends(get_admin_user)):
     """Admin only: List all users on the platform."""
     return db.query(User).order_by(User.id.asc()).all()
+
 
 @router.post("/", response_model=UserOut)
 def create_user_as_admin(
@@ -101,6 +112,7 @@ def create_user_as_admin(
     db.refresh(new_user)
     return new_user
 
+
 @router.put("/{target_user_id}", response_model=UserOut)
 def update_user_status(
     target_user_id: int,
@@ -109,10 +121,6 @@ def update_user_status(
     admin: User = Depends(get_admin_user)
 ):
     """Admin only: Activate/deactivate or change roles of users."""
-
-    # FIX FOR BUG 26: Strictly validate the assigned role
-    if update_data.role not in ['admin', 'user']:
-        raise HTTPException(status_code=400, detail="Invalid role. Must be 'admin' or 'user'.")
 
     # FIX FOR BUG 26: Prevent self-demotion alongside self-disabling
     if target_user_id == admin.id:
@@ -132,11 +140,11 @@ def update_user_status(
     db.refresh(user)
     return user
 
-# Update the endpoint signature to require a password
+
 @router.delete("/{target_user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user(
     target_user_id: int,
-    password: str = Form(...), # Require admin password confirmation
+    password: str = Form(...),  # Require admin password confirmation
     db: Session = Depends(get_db),
     admin: User = Depends(get_admin_user)
 ):

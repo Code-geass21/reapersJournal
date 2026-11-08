@@ -38,7 +38,8 @@ services:
       start_period: 30s
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      JWT_SECRET: ${JWT_SECRET}
+      # FIX FOR BUG 65: The :? syntax causes docker-compose to throw an error if unset
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required in your environment}
       TZ: ${TZ}
       TWELVEDATA_API_KEY: ${TWELVEDATA_API_KEY}
       PRICE_REFRESH_SECS: ${PRICE_REFRESH_SECS}
@@ -60,7 +61,7 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required in your environment}
       PRICE_REFRESH_SECS: ${PRICE_REFRESH_SECS}
       TZ: ${TZ}
       TWELVEDATA_API_KEY: ${TWELVEDATA_API_KEY}
