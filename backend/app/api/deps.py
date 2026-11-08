@@ -1,8 +1,9 @@
-import time  # <-- Required for cache expiration checks
+import time  # Required for cache expiration checks
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
+from sqlalchemy import text  # Added for Bug 31
 
 from app.database import get_db
 from app.config import settings
@@ -49,6 +50,12 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
             status_code=503,
             detail="System is currently in maintenance mode. Please try again later."
         )
+
+    # FIX FOR BUG 31: Inject the user ID into the Postgres session for the audit trigger
+    try:
+        db.execute(text(f"SET LOCAL app.current_user_id = '{user.id}'"))
+    except Exception as e:
+        pass  # Fallback to standard execution if session setting fails
 
     return user
 

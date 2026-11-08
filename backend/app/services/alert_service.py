@@ -9,9 +9,11 @@ def create_alert(db: Session, user_id: int, kind: str, message: str, trade_id: i
         if trade_id:
             base_msg = message.split(" at ")[0]
 
+            # FIX FOR BUG 83: Dedupe only against active alerts, allowing them to re-arm.
             existing = db.query(Alert).filter(
                 Alert.trade_id == trade_id,
                 Alert.kind == kind,
+                Alert.status.in_(['new', 'seen']),
                 Alert.message.startswith(base_msg)
             ).first()
 
@@ -30,4 +32,5 @@ def create_alert(db: Session, user_id: int, kind: str, message: str, trade_id: i
         return True
     except Exception as e:
         logger.error(f"Failed to create alert: {e}")
+        db.rollback()  # Rollback on exception
         return False

@@ -45,10 +45,9 @@ def get_open_trade_prices(db: Session, user_id: int) -> List[Dict[str, Any]]:
 
         inst_dict = {"contract_size": instrument.contract_size, "pip_size": instrument.pip_size, "quote_ccy": instrument.quote_ccy}
 
-        # FIX FOR BUG 44: Gracefully catch the ValueError and return 0.0 for P&L
-        # rather than crashing the entire /prices/open endpoint.
-        unrealized_pips = 0.0
-        unrealized_pnl = 0.0
+        # FIX FOR BUG 82: Return None instead of 0.0 so the UI knows to show N/A
+        unrealized_pips = None
+        unrealized_pnl = None
         try:
             pnl_data = pnl_service.calculate_pnl(
                 db=db,
@@ -62,7 +61,6 @@ def get_open_trade_prices(db: Session, user_id: int) -> List[Dict[str, Any]]:
             unrealized_pnl = pnl_data['pnl_realized']
         except ValueError as e:
             logger.warning(f"Could not calculate unrealized P&L for trade {trade.id}: {e}")
-            # Ensure the UI marks it as stale if we can't compute P&L
             is_stale = True
 
         results.append({

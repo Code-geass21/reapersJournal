@@ -9,15 +9,15 @@ export default function LivePriceBadge({ liveData, isLong }) {
         );
     }
 
-    // FIX FOR BUG 8: Destructure the new threshold field
     const { current_price, unrealized_pnl, is_stale, stale_threshold_secs } = liveData;
 
-    // Determine color based on P&L
-    const isProfitable = unrealized_pnl >= 0;
-    const color = isProfitable ? '#22c55e' : '#ef4444';
-    const bgColor = isProfitable ? '#22c55e20' : '#ef444420';
+    // FIX FOR BUG 82: Handle null P&L cleanly
+    const hasPnl = unrealized_pnl !== null && unrealized_pnl !== undefined;
+    const isProfitable = hasPnl && unrealized_pnl >= 0;
 
-    // Helper to format seconds into a readable string (e.g., 900s -> "15 minutes")
+    const color = hasPnl ? (isProfitable ? '#22c55e' : '#ef4444') : '#94a3b8';
+    const bgColor = hasPnl ? (isProfitable ? '#22c55e20' : '#ef444420') : '#334155';
+
     const formatStaleness = (secs) => {
         if (!secs) return "Data is stale";
         if (secs < 60) return `${secs} seconds`;
@@ -27,7 +27,6 @@ export default function LivePriceBadge({ liveData, isLong }) {
 
     return (
         <span
-        // FIX FOR BUG 8: Dynamic tooltip message
         title={is_stale ? `Data is older than ${formatStaleness(stale_threshold_secs)}` : "Live Price"}
         style={{
             fontSize: '0.75rem',
@@ -43,7 +42,7 @@ export default function LivePriceBadge({ liveData, isLong }) {
         >
         {current_price.toFixed(5)}
         <span style={{ opacity: 0.7 }}>
-        ({isProfitable ? '+' : ''}{unrealized_pnl.toFixed(2)})
+        ({hasPnl ? `${isProfitable ? '+' : ''}${unrealized_pnl.toFixed(2)}` : 'N/A'})
         </span>
         {is_stale && ' ⚠️'}
         </span>

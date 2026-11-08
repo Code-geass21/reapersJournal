@@ -2,6 +2,8 @@ import time
 import logging
 from app.config import settings
 from app.jobs import fetch_prices, fetch_news, check_alerts, scheduled_backup
+from app.services import log_service
+from app.database import SessionLocal
 
 logging.basicConfig(
     level=logging.INFO,
@@ -10,11 +12,26 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def safe_run(job_func, job_name):
-    """FIX FOR BUG 59: Isolates jobs so a failure in one doesn't crash the whole cycle."""
+    """FIX FOR BUG 59 & 85: Isolates jobs and logs failures to the DB."""
     try:
         job_func()
     except Exception as e:
         logger.error(f"Job {job_name} failed: {e}")
+        # Log to DB so admins can see it in the UI
+        db = SessionLocal()
+        try:
+            log_service.write(
+                db=db,
+                action=f"worker_job_failed:{job_name}",
+                level="ERROR",
+                source="worker",
+                error_text=str(e)
+            )
+            db.commit()
+        except Exception as log_e:
+            logger.error(f"Failed to write worker log to DB: {log_e}")
+        finally:
+            db.close()
 
 def main():
     interval = settings.price_refresh_secs

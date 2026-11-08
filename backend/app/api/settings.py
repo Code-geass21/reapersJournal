@@ -41,6 +41,14 @@ def update_global_setting(
     if not setting:
         raise HTTPException(status_code=404, detail="Setting not found")
 
+    # FIX FOR BUG 84: Validate specific types per key to prevent bad JSON injections
+    if key in ['maintenance_mode', 'allow_registration']:
+        if not isinstance(setting_in.value, bool):
+            raise HTTPException(status_code=400, detail=f"{key} must be a boolean.")
+    elif key == 'price_provider':
+        if setting_in.value not in ['twelvedata', 'alphavantage']:
+            raise HTTPException(status_code=400, detail="Invalid price provider.")
+
     setting.value = setting_in.value
     db.commit()
     db.refresh(setting)
