@@ -3,12 +3,14 @@ import json
 import zipfile
 import shutil
 import logging
+import uuid
 from sqlalchemy.orm import Session
+from fastapi import HTTPException
+
 from app.utils.table_registry import BACKUP_REGISTRY
 from app.models.user import User
 from app.models.attachment import Attachment
 from app.models.instrument import Instrument
-from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +31,6 @@ def secure_extract(zip_ref, target_dir):
 
 def process_restore(db: Session, user_id: int, zip_filepath: str):
     # Ensure a unique temp dir to prevent cross-contamination if concurrent restores happen
-    import uuid
     unique_temp_dir = f"{TEMP_DIR}_{uuid.uuid4().hex}"
 
     if os.path.exists(unique_temp_dir):
@@ -49,6 +50,10 @@ def process_restore(db: Session, user_id: int, zip_filepath: str):
 
         all_instruments = db.query(Instrument).all()
         symbol_to_id = {inst.symbol: inst.id for inst in all_instruments}
+
+        # FIX FOR BUG 78: Check if the restoring user is an admin
+        user = db.query(User).filter(User.id == user_id).first()
+        is_admin = user and user.role == 'admin'
 
         # FIX FOR BUG 56: Collect files to delete, but do NOT delete them until commit succeeds
         files_to_delete = []
@@ -90,20 +95,20 @@ def process_restore(db: Session, user_id: int, zip_filepath: str):
                         if 'password_hash' in row_data:
                             del row_data['password_hash']
 
-                        # --- FIX FOR BUG 56: Strict Foreign Key Mapping Enforcement ---
-                        if 'strategy_id' in row_data:
+                        # --- FIX FOR BUG 56 & 79: Strict Foreign Key Mapping (Skip NULLs) ---
+                        if row_data.get('strategy_id') is not None:
                             if row_data['strategy_id'] in id_map["strategies"]:
                                 row_data['strategy_id'] = id_map["strategies"][row_data['strategy_id']]
                             else:
                                 raise HTTPException(status_code=400, detail="Restore aborted: Unmapped strategy detected.")
 
-                        if 'rule_id' in row_data:
+                        if row_data.get('rule_id') is not None:
                             if row_data['rule_id'] in id_map["strategy_rules"]:
                                 row_data['rule_id'] = id_map["strategy_rules"][row_data['rule_id']]
                             else:
                                 raise HTTPException(status_code=400, detail="Restore aborted: Unmapped rule detected.")
 
-                        if 'trade_id' in row_data:
+                        if row_data.get('trade_id') is not None:
                             if row_data['trade_id'] in id_map["trades"]:
                                 row_data['trade_id'] = id_map["trades"][row_data['trade_id']]
                             else:
@@ -111,18 +116,25 @@ def process_restore(db: Session, user_id: int, zip_filepath: str):
 
                         if table_def["name"] == "attachments":
                             if row_data.get("owner_type") == "trade":
-                                if 'owner_id' in row_data and row_data['owner_id'] in id_map["trades"]:
+                                if row_data.get('owner_id') is not None and row_data['owner_id'] in id_map["trades"]:
                                     row_data['owner_id'] = id_map["trades"][row_data['owner_id']]
                             elif row_data.get("owner_type") == "avatar":
                                 row_data['owner_id'] = user_id
 
+                        # Map instrument IDs safely by verifying the symbol against the DB
                         if table_def["name"] == "instruments":
                             symbol = row_data.get('symbol')
                             if symbol in symbol_to_id:
                                 if old_id:
                                     id_map["instruments"][old_id] = symbol_to_id[symbol]
                             else:
-                                # FIX FOR BUG 56: Create the custom instrument automatically
+                                # FIX FOR BUG 78: Restrict global instrument creation to admins only
+                                if not is_admin:
+                                    raise HTTPException(
+                                        status_code=400,
+                                        detail=f"Restore aborted: Unknown instrument '{symbol}'. Normal users cannot create global instruments."
+                                    )
+
                                 new_inst = Instrument(**row_data)
                                 db.add(new_inst)
                                 db.flush()
@@ -131,11 +143,12 @@ def process_restore(db: Session, user_id: int, zip_filepath: str):
                                     id_map["instruments"][old_id] = new_inst.id
                             continue
 
-                        if 'instrument_id' in row_data:
+                        # Apply the instrument ID mapping if this row relies on an instrument
+                        if row_data.get('instrument_id') is not None:
                             if row_data['instrument_id'] in id_map["instruments"]:
                                 row_data['instrument_id'] = id_map["instruments"][row_data['instrument_id']]
                             else:
-                                raise HTTPException(status_code=400, detail=f"Restore aborted: Unknown instrument ID.")
+                                raise HTTPException(status_code=400, detail="Restore aborted: Unknown instrument ID.")
 
                         new_record = table_def["model"](**row_data)
                         db.add(new_record)
@@ -144,7 +157,6 @@ def process_restore(db: Session, user_id: int, zip_filepath: str):
                         if old_id and table_def["name"] in id_map:
                             id_map[table_def["name"]][old_id] = new_record.id
 
-        user = db.query(User).filter(User.id == user_id).first()
         if user:
             latest_avatar = db.query(Attachment).filter(
                 Attachment.user_id == user_id,

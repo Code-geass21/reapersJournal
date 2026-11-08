@@ -1,10 +1,11 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import asc
+from sqlalchemy import asc, func
 from app.models.trade import Trade
 from typing import List, Optional
 from collections import defaultdict
 from app.models.strategy import Strategy, StrategyDeposit
 from datetime import datetime
+from fastapi import HTTPException
 
 def get_performance_stats(
     db: Session,
@@ -26,22 +27,26 @@ def get_performance_stats(
         query = query.filter(Trade.strategy_id.in_(strategy_ids))
         dep_query = dep_query.filter(StrategyDeposit.strategy_id.in_(strategy_ids))
 
-    # Apply date filters
+    # Apply date filters with explicit 400 validation
     if start_date:
         try:
             dt_start = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-            query = query.filter(Trade.opened_at >= dt_start)
+            # FIX FOR BUG 80: Filter by closed_at instead of opened_at
+            query = query.filter(Trade.closed_at >= dt_start)
             dep_query = dep_query.filter(StrategyDeposit.date >= dt_start.date())
-        except Exception: pass
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid start_date format")
 
     if end_date:
         try:
             dt_end = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-            query = query.filter(Trade.opened_at <= dt_end)
+            query = query.filter(Trade.closed_at <= dt_end)
             dep_query = dep_query.filter(StrategyDeposit.date <= dt_end.date())
-        except Exception: pass
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid end_date format")
 
-    trades = query.order_by(asc(Trade.opened_at)).all()
+    # FIX FOR BUG 80: Order by closed_at (fallback to updated_at for partials) for an accurate chronological equity curve
+    trades = query.order_by(asc(func.coalesce(Trade.closed_at, Trade.updated_at))).all()
     deposits = dep_query.all()
 
     net_funding = sum(float(d.amount) if d.kind == 'deposit' else -float(d.amount) for d in deposits)
@@ -86,7 +91,9 @@ def get_performance_stats(
         pnl = float(t.pnl_realized)
         is_win = 1 if pnl > 0 else 0
         is_loss = 1 if pnl < 0 else 0
-        is_resolved = 1 if (is_win or is_loss) else 0
+
+        # FIX FOR BUG 81: Break-even trades must be counted as resolved
+        is_resolved = 1
 
         # Equity Curve & Drawdown
         cumulative += pnl
