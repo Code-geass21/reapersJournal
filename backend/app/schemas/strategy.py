@@ -1,10 +1,10 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from datetime import date
 
 # --- Strategy Rule Schemas ---
 class StrategyRuleBase(BaseModel):
-    rule_type: str # 'entry', 'exit', 'risk', 'filter'
+    rule_type: Literal['entry', 'exit', 'risk', 'filter']
     label: str
     params: Dict[str, Any] = Field(default_factory=dict)
     is_required: bool = True
@@ -44,7 +44,7 @@ class StrategyOut(StrategyBase):
 # --- Strategy Deposit Schemas ---
 class StrategyDepositBase(BaseModel):
     amount: float
-    kind: str  # 'deposit' or 'withdrawal'
+    kind: Literal['deposit', 'withdrawal']
     date: date
     note: Optional[str] = None
 

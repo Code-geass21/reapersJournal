@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 
 class TradeConditionCheckBase(BaseModel):
@@ -18,7 +18,7 @@ class TradeConditionCheckOut(TradeConditionCheckBase):
         from_attributes = True
 
 class TradeExecutionBase(BaseModel):
-    execution_type: str
+    execution_type: Literal['entry', 'exit']
     price: float
     size: float
     note: Optional[str] = None
@@ -51,10 +51,10 @@ class TradeCreate(TradeBase):
     initial_execution: Optional[TradeExecutionCreate] = None
 
 class TradeUpdate(BaseModel):
-    status: Optional[str] = None
     strategy_id: Optional[int] = None
     instrument_id: Optional[int] = None
-    direction: Optional[str] = None
+    direction: Literal['long', 'short']
+    status: Literal['open', 'closed', 'cancelled'] = 'open'
     entry_price: Optional[float] = None
     size: Optional[float] = None
     stop_loss: Optional[float] = None

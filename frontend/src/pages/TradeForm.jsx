@@ -134,7 +134,7 @@ export default function TradeForm() {
         style={{ width: '100%', padding: '0.5rem' }}
         required
         >
-        {strategies.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        {strategies.filter(s => s.is_active).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
         </div>
         </div>

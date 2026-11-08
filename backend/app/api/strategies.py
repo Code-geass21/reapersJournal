@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, ConfigDict
 from app.database import get_db
 from app.models.strategy import Strategy, StrategyRule, StrategyDeposit
 from app.models.trade import Trade
@@ -20,20 +20,19 @@ router = APIRouter(prefix="/strategies", tags=["Strategies"])
 # --- FIX FOR BUG 29: Pydantic Validation Models for Rule Params ---
 
 class RiskRuleParams(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     requires_sl: Optional[bool] = None
     max_lot_size: Optional[float] = Field(
-        None,
-        gt=0,
-        description="Must be greater than 0"
+        None, gt=0, allow_inf_nan=False, description="Must be > 0"
     )
     min_rr: Optional[float] = Field(
-        None,
-        gt=0,
-        description="Must be strictly positive"
+        None, gt=0, allow_inf_nan=False, description="Must be strictly positive"
     )
 
 
 class FilterRuleParams(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     # Example for future expansion, ensuring lists are actually lists
     sessions: Optional[List[str]] = None
     max_daily_trades: Optional[int] = Field(None, ge=1)

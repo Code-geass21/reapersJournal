@@ -118,6 +118,10 @@ def create_trade(db: Session, user_id: int, trade_in: TradeCreate) -> Trade:
     if not strategy:
         raise HTTPException(status_code=403, detail="Invalid strategy or you do not own it.")
 
+    # FIX FOR BUG 49: Prevent trades against soft-deleted strategies
+    if not strategy.is_active:
+        raise HTTPException(status_code=400, detail="Cannot log new trades against an archived strategy.")
+
     instrument = db.query(Instrument).filter(Instrument.id == trade_in.instrument_id).first()
     if not instrument:
         raise HTTPException(status_code=400, detail="Invalid instrument.")

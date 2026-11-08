@@ -71,7 +71,7 @@ export default function Strategies() {
     };
 
     const handleDelete = async (id) => {
-        if (!window.confirm("Are you sure? This will delete the strategy, its rules, and ALL associated trades. This cannot be undone.")) return;
+        if (!window.confirm("Delete this strategy? If it has existing trades, it will be archived instead to preserve your journal history.")) return;
         try {
             await api.delete(`/strategies/${id}`);
             fetchStrategies();
@@ -173,8 +173,8 @@ export default function Strategies() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                 <h3 style={{ margin: '0 0 0.5rem 0' }}>
-                <Link to={`/strategies/${s.id}`} style={{ color: '#f8fafc', textDecoration: 'none' }}>
-                {s.name} →
+                <Link to={`/strategies/${s.id}`} style={{ color: s.is_active ? '#f8fafc' : '#94a3b8', textDecoration: 'none' }}>
+                {s.name} {!s.is_active && <span style={{fontSize: '0.8rem', fontWeight: 'normal'}}>(Archived)</span>} →
                 </Link>
                 </h3>
                 {s.description && <p style={{ margin: '0 0 1rem 0', color: '#cbd5e1' }}>{s.description}</p>}
