@@ -11,18 +11,19 @@ from app.models.setting import AppSetting
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
+# backend/app/api/auth.py (Snippet for register)
+
 @router.post("/register", response_model=UserOut)
 def register(user_in: UserCreate, db: Session = Depends(get_db)):
-    # FIX FOR BUG 35: Enforce global registration lock
+    # FIX FOR BUG 35 & 47: Enforce global registration lock properly
     registration_setting = db.query(AppSetting).filter(
         AppSetting.key == 'allow_registration'
     ).first()
 
     is_first_user = db.query(User).count() == 0
 
-    # Allow registration if it's the very first user,
-    # OR if the global setting allows it.
-    allow_reg = (registration_setting and registration_setting.value == "true")
+    # JSONB 'false' deserializes to Python False, not a string
+    allow_reg = (registration_setting and registration_setting.value is True)
 
     if not is_first_user and not allow_reg:
         raise HTTPException(status_code=403, detail="Open registration is disabled. Contact an administrator.")
@@ -31,11 +32,14 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
        db.query(User).filter(User.email == user_in.email).first():
         raise HTTPException(status_code=400, detail="Username or email already registered")
 
+    # FIX FOR BUG 48: Only the very first user becomes an admin
+    assigned_role = "admin" if is_first_user else "user"
+
     new_user = User(
         username=user_in.username,
         email=user_in.email,
         password_hash=get_password_hash(user_in.password),
-        role="admin"
+        role=assigned_role
     )
     db.add(new_user)
     db.commit()

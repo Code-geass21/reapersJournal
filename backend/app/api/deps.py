@@ -27,12 +27,15 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None:
         raise credentials_exception
 
+    # backend/app/api/deps.py (Snippet for get_current_user)
+
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is disabled")
 
-    # FIX FOR BUG 35: Check Maintenance Mode
+    # FIX FOR BUG 47: Compare JSONB boolean correctly to Python True
     maintenance_setting = db.query(AppSetting).filter(AppSetting.key == 'maintenance_mode').first()
-    if maintenance_setting and maintenance_setting.value == "true":
+
+    if maintenance_setting and maintenance_setting.value is True:
         # If maintenance is on, only admins can proceed
         if user.role != 'admin':
             raise HTTPException(

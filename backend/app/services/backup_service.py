@@ -30,8 +30,12 @@ def create_user_backup(db: Session, user_id: int) -> str:
     os.makedirs(temp_dir, exist_ok=True)
 
     try:
-        # 1. Export Data to JSON using the Registry Contract
+        # backend/app/services/backup_service.py (Snippet for create_user_backup)
         for table_def in BACKUP_REGISTRY:
+            # FIX FOR BUG 56 & 57: Never export the audit logs in a user backup
+            if table_def["name"] == "app_logs":
+                continue
+
             query = db.query(table_def["model"])
             filtered_query = table_def["user_filter"](query, user_id)
             rows = filtered_query.all()
@@ -40,6 +44,11 @@ def create_user_backup(db: Session, user_id: int) -> str:
             data = []
             for row in rows:
                 row_dict = {c.name: getattr(row, c.name) for c in row.__table__.columns}
+
+                # FIX FOR BUG 57: Strip sensitive hashes before writing JSON
+                if "password_hash" in row_dict:
+                    del row_dict["password_hash"]
+
                 data.append(row_dict)
 
             file_path = os.path.join(temp_dir, f"{table_def['name']}.json")

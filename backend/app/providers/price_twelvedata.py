@@ -1,3 +1,5 @@
+# backend/app/providers/price_twelvedata.py
+
 import requests
 import logging
 from typing import Dict
@@ -18,31 +20,48 @@ def fetch_prices(symbols: list[str]) -> Dict[str, dict]:
     formatted_symbols = []
     symbol_map = {}
 
-    # Map 'EURUSD=X' to 'EUR/USD'
     for sym in unique_symbols:
         clean_sym = sym.replace('=X', '')
         if len(clean_sym) == 6:
             td_sym = f"{clean_sym[0:3]}/{clean_sym[3:6]}"
             formatted_symbols.append(td_sym)
             symbol_map[td_sym] = sym
+        else:
+            # FIX FOR BUG 58: Support raw symbols like BTC/USD or indices without assuming 6 chars
+            formatted_symbols.append(clean_sym)
+            symbol_map[clean_sym] = sym
 
     if not formatted_symbols:
         return {}
 
-    # Join symbols into a single batch request
     batch_symbols = ",".join(formatted_symbols)
-    url = f"https://api.twelvedata.com/price?symbol={batch_symbols}&apikey={settings.twelvedata_api_key}"
+
+    # FIX FOR BUG 58: Hide API key from the base URL string.
+    # Pass via params dictionary to avoid it leaking in log traces.
+    url = "https://api.twelvedata.com/price"
+    params = {
+        "symbol": batch_symbols,
+        "apikey": settings.twelvedata_api_key
+    }
 
     try:
-        response = requests.get(url)
+        # FIX FOR BUG 58: Add explicit 10 second timeout
+        response = requests.get(url, params=params, timeout=10)
+
+        # Handle 429 Quota Exceeded gracefully
+        if response.status_code == 429:
+            logger.warning("[TwelveData] Rate limit (429) reached. Try reducing refresh frequency.")
+            return {}
+
         response.raise_for_status()
         data = response.json()
 
         if "status" in data and data["status"] == "error":
-            logger.error(f"TwelveData API Error: {data['message']}")
+            # Redact the key just in case it is echoed in the provider message
+            safe_msg = data.get('message', 'Unknown Error').replace(settings.twelvedata_api_key, '***REDACTED***')
+            logger.error(f"TwelveData API Error: {safe_msg}")
             return {}
 
-        # TwelveData returns a different JSON structure for 1 symbol vs multiple
         if len(formatted_symbols) == 1:
             td_sym = formatted_symbols[0]
             orig_sym = symbol_map[td_sym]
@@ -66,7 +85,10 @@ def fetch_prices(symbols: list[str]) -> Dict[str, dict]:
                     }
                     logger.info(f"Successfully fetched TwelveData price for {orig_sym}")
 
+    except requests.exceptions.Timeout:
+        logger.error("[TwelveData] API request timed out after 10 seconds.")
     except Exception as e:
-        logger.error(f"[TwelveData] Failed to fetch prices: {e}")
+        safe_error = str(e).replace(settings.twelvedata_api_key, '***REDACTED***')
+        logger.error(f"[TwelveData] Failed to fetch prices: {safe_error}")
 
     return result

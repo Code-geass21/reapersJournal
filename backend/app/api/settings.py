@@ -1,12 +1,51 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from typing import Any, List, Optional
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_admin_user
 from app.models.user import User
 from app.models.preference import UserPreference
 from app.schemas.setting import UserPreferenceOut, UserPreferenceUpdate
+from app.models.setting import AppSetting
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
+
+class AppSettingUpdate(BaseModel):
+    value: Any
+
+class AppSettingOut(BaseModel):
+    key: str
+    value: Any
+    description: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/global", response_model=List[AppSettingOut])
+def get_global_settings(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user)
+):
+    return db.query(AppSetting).order_by(AppSetting.key.asc()).all()
+
+@router.put("/global/{key}", response_model=AppSettingOut)
+def update_global_setting(
+    key: str,
+    setting_in: AppSettingUpdate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user)
+):
+    setting = db.query(AppSetting).filter(AppSetting.key == key).first()
+    if not setting:
+        raise HTTPException(status_code=404, detail="Setting not found")
+
+    setting.value = setting_in.value
+    db.commit()
+    db.refresh(setting)
+    return setting
+
 
 @router.get("/preferences", response_model=UserPreferenceOut)
 def get_preferences(
