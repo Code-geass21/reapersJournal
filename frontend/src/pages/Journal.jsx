@@ -73,24 +73,24 @@ export default function Journal() {
         <h2 style={{ margin: 0 }}>Trading Journal</h2>
         <Link
         to="/journal/new"
-        style={{ background: '#22d3ee', color: '#0f172a', padding: '0.5rem 1rem', textDecoration: 'none', fontWeight: 'bold', borderRadius: '4px' }}
+        style={{ background: 'var(--accent)', color: 'var(--bg-color)', padding: '0.5rem 1rem', textDecoration: 'none', fontWeight: 'bold', borderRadius: '4px' }}
         >
         + New Trade
         </Link>
         </div>
 
         {/* NEW: Filter Bar */}
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', background: '#1e293b', padding: '1rem', borderRadius: '8px' }}>
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', background: 'var(--bg-panel)', padding: '1rem', borderRadius: '8px' }}>
         <div style={{ flex: 1 }}>
-        <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem', textTransform: 'uppercase' }}>Strategy</label>
-        <select value={filterStrategy} onChange={e => setFilterStrategy(e.target.value)} style={{ width: '100%', padding: '0.5rem', background: '#0f172a', border: '1px solid #334155', color: '#f8fafc', borderRadius: '4px' }}>
+        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', textTransform: 'uppercase' }}>Strategy</label>
+        <select value={filterStrategy} onChange={e => setFilterStrategy(e.target.value)} style={{ width: '100%', padding: '0.5rem', background: 'var(--bg-color)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '4px' }}>
         <option value="">All Strategies</option>
         {strategies.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
         </div>
         <div style={{ flex: 1 }}>
-        <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem', textTransform: 'uppercase' }}>Status</label>
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ width: '100%', padding: '0.5rem', background: '#0f172a', border: '1px solid #334155', color: '#f8fafc', borderRadius: '4px' }}>
+        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', textTransform: 'uppercase' }}>Status</label>
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ width: '100%', padding: '0.5rem', background: 'var(--bg-color)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '4px' }}>
         <option value="">All Statuses</option>
         <option value="open">Open</option>
         <option value="closed">Closed</option>
@@ -102,9 +102,9 @@ export default function Journal() {
         {error && <div style={{ color: '#ef4444', marginBottom: '1rem' }}>{error}</div>}
 
         {loading ? (
-            <div style={{ color: '#94a3b8' }}>Loading trades...</div>
+            <div style={{ color: 'var(--text-muted)' }}>Loading trades...</div>
         ) : trades.length === 0 ? (
-            <p style={{ color: '#94a3b8' }}>No trades match your filters.</p>
+            <p style={{ color: 'var(--text-muted)' }}>No trades match your filters.</p>
         ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {trades.map(trade => {
@@ -114,11 +114,11 @@ export default function Journal() {
                 const tradeLiveData = liveData[trade.id];
 
                 return (
-                    <div key={trade.id} style={{ background: '#1e293b', padding: '1.25rem', borderRadius: '8px', borderLeft: `4px solid ${isLong ? '#22c55e' : '#ef4444'}` }}>
+                    <div key={trade.id} style={{ background: 'var(--bg-panel)', padding: '1.25rem', borderRadius: '8px', borderLeft: `4px solid ${isLong ? '#22c55e' : '#ef4444'}` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
                     <div>
                     <h3 style={{ margin: '0 0 0.25rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Link to={`/journal/${trade.id}`} style={{ color: '#22d3ee', textDecoration: 'none' }}>
+                    <Link to={`/journal/${trade.id}`} style={{ color: 'var(--accent)', textDecoration: 'none' }}>
                     {inst?.symbol || 'Unknown'} →
                     </Link>
                     <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '4px', background: isLong ? '#22c55e20' : '#ef444420', color: isLong ? '#22c55e' : '#ef4444', textTransform: 'uppercase' }}>
@@ -128,10 +128,10 @@ export default function Journal() {
                         <LivePriceBadge liveData={tradeLiveData} isLong={isLong} />
                     )}
                     </h3>
-                    <div style={{ fontSize: '0.875rem', color: '#94a3b8' }}>{strat?.name || 'Unknown Strategy'} • Opened: {new Date(trade.opened_at).toLocaleString()}</div>
+                    <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>{strat?.name || 'Unknown Strategy'} • Opened: {new Date(trade.opened_at).toLocaleString()}</div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <span style={{ fontSize: '0.875rem', padding: '0.2rem 0.5rem', borderRadius: '4px', background: trade.status === 'open' ? '#eab30820' : '#334155', color: trade.status === 'open' ? '#eab308' : '#f8fafc', textTransform: 'uppercase' }}>
+                    <span style={{ fontSize: '0.875rem', padding: '0.2rem 0.5rem', borderRadius: '4px', background: trade.status === 'open' ? '#eab30820' : 'var(--border-color)', color: trade.status === 'open' ? '#eab308' : 'var(--text-primary)', textTransform: 'uppercase' }}>
                     {trade.status}
                     </span>
                     <button onClick={() => handleDelete(trade.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem', padding: 0 }} title="Delete Trade">
@@ -140,10 +140,10 @@ export default function Journal() {
                     </div>
                     </div>
                     <div style={{ display: 'flex', gap: '2rem', fontSize: '0.875rem' }}>
-                    <div><span style={{ color: '#94a3b8' }}>Entry:</span> {trade.entry_price}</div>
-                    <div><span style={{ color: '#94a3b8' }}>Size:</span> {trade.size}</div>
-                    {trade.stop_loss && <div><span style={{ color: '#94a3b8' }}>SL:</span> {trade.stop_loss}</div>}
-                    {trade.take_profit && <div><span style={{ color: '#94a3b8' }}>TP:</span> {trade.take_profit}</div>}
+                    <div><span style={{ color: 'var(--text-muted)' }}>Entry:</span> {trade.entry_price}</div>
+                    <div><span style={{ color: 'var(--text-muted)' }}>Size:</span> {trade.size}</div>
+                    {trade.stop_loss && <div><span style={{ color: 'var(--text-muted)' }}>SL:</span> {trade.stop_loss}</div>}
+                    {trade.take_profit && <div><span style={{ color: 'var(--text-muted)' }}>TP:</span> {trade.take_profit}</div>}
                     </div>
                     </div>
                 )

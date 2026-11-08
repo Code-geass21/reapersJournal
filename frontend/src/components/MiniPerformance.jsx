@@ -27,25 +27,25 @@ export default function MiniPerformance() {
         };
     }, []);
 
-    if (!stats) return <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>Loading Stats...</div>;
+    if (!stats) return <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Loading Stats...</div>;
 
     const isPositive = stats.total_pnl >= 0;
 
     return (
         <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', fontSize: '0.875rem' }}>
         <div>
-        <span style={{ color: '#94a3b8', marginRight: '0.5rem' }}>Total P&L:</span>
+        <span style={{ color: 'var(--text-muted)', marginRight: '0.5rem' }}>Total P&L:</span>
         <span style={{ fontWeight: 'bold', color: isPositive ? '#22c55e' : '#ef4444' }}>
         {isPositive ? '+' : ''}{stats.total_pnl}
         </span>
         </div>
         <div>
-        <span style={{ color: '#94a3b8', marginRight: '0.5rem' }}>Win Rate:</span>
-        <span style={{ color: '#f8fafc', fontWeight: 'bold' }}>{stats.win_rate}%</span>
+        <span style={{ color: 'var(--text-muted)', marginRight: '0.5rem' }}>Win Rate:</span>
+        <span style={{ color: 'var(--text-primary)', fontWeight: 'bold' }}>{stats.win_rate}%</span>
         </div>
         <div>
-        <span style={{ color: '#94a3b8', marginRight: '0.5rem' }}>Trades:</span>
-        <span style={{ color: '#f8fafc', fontWeight: 'bold' }}>{stats.total_trades}</span>
+        <span style={{ color: 'var(--text-muted)', marginRight: '0.5rem' }}>Trades:</span>
+        <span style={{ color: 'var(--text-primary)', fontWeight: 'bold' }}>{stats.total_trades}</span>
         </div>
         </div>
     );

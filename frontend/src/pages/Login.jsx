@@ -24,7 +24,7 @@ export default function Login() {
     };
 
     return (
-        <div style={{ maxWidth: '350px', margin: '100px auto', padding: '2rem', background: '#1e293b', borderRadius: '8px' }}>
+        <div style={{ maxWidth: '350px', margin: '100px auto', padding: '2rem', background: 'var(--bg-panel)', borderRadius: '8px' }}>
         <h2 style={{ marginTop: 0 }}>{isRegister ? 'Create Admin' : 'Login'}</h2>
         {error && <p style={{ color: '#ef4444' }}>{error}</p>}
 
@@ -54,14 +54,14 @@ export default function Login() {
         required
         style={{ padding: '0.5rem' }}
         />
-        <button type="submit" style={{ background: '#22d3ee', color: '#0f172a', padding: '0.5rem', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>
+        <button type="submit" style={{ background: 'var(--accent)', color: 'var(--bg-color)', padding: '0.5rem', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>
         {isRegister ? 'Register' : 'Login'}
         </button>
         </form>
 
         <button
         onClick={() => setIsRegister(!isRegister)}
-        style={{ background: 'none', color: '#22d3ee', border: 'none', marginTop: '1rem', cursor: 'pointer', width: '100%' }}
+        style={{ background: 'none', color: 'var(--accent)', border: 'none', marginTop: '1rem', cursor: 'pointer', width: '100%' }}
         >
         {isRegister ? 'Already have an account? Login' : 'Need an account? Register'}
         </button>

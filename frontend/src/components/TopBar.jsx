@@ -51,15 +51,15 @@ export default function TopBar() {
 
     return (
         <header style={{
-            background: '#1e293b',
+            background: 'var(--bg-panel)',
             padding: '1rem 2rem',
             display: 'flex',
             justifyContent: 'flex-end',
             alignItems: 'center',
-            borderBottom: '1px solid #334155'
+            borderBottom: '1px solid var(--border-color)'
         }}>
         <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
-        <div style={{ paddingRight: '2rem', borderRight: '1px solid #334155' }}>
+        <div style={{ paddingRight: '2rem', borderRight: '1px solid var(--border-color)' }}>
         <MiniPerformance />
         </div>
 
@@ -84,41 +84,41 @@ export default function TopBar() {
         {isAlertsOpen && (
             <div style={{
                 position: 'absolute', top: '100%', right: 0, marginTop: '0.5rem',
-                background: '#0f172a', border: '1px solid #334155', borderRadius: '8px',
+                background: 'var(--bg-color)', border: '1px solid var(--border-color)', borderRadius: '8px',
                 width: '320px', maxHeight: '400px', overflowY: 'auto', zIndex: 100,
                 boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)'
             }}>
-            <div style={{ padding: '1rem', borderBottom: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h4 style={{ margin: 0, color: '#f8fafc' }}>Active Alerts</h4>
-            <button onClick={() => setIsAlertsOpen(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>✕</button>
+            <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h4 style={{ margin: 0, color: 'var(--text-primary)' }}>Active Alerts</h4>
+            <button onClick={() => setIsAlertsOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>✕</button>
             </div>
             {alerts.length === 0 ? (
-                <div style={{ padding: '1rem', color: '#94a3b8', textAlign: 'center' }}>No active alerts.</div>
+                <div style={{ padding: '1rem', color: 'var(--text-muted)', textAlign: 'center' }}>No active alerts.</div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {alerts.map(alert => (
-                    <div key={alert.id} style={{ padding: '1rem', borderBottom: '1px solid #334155' }}>
+                    <div key={alert.id} style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                     <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: alert.kind === 'sl_hit' ? '#ef4444' : '#22c55e', textTransform: 'uppercase' }}>
                     {alert.kind.replace('_', ' ')}
                     </span>
-                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     {new Date(alert.created_at).toLocaleTimeString()}
                     </span>
                     </div>
-                    <p style={{ margin: '0 0 1rem 0', fontSize: '0.875rem', color: '#f8fafc' }}>{alert.message}</p>
+                    <p style={{ margin: '0 0 1rem 0', fontSize: '0.875rem', color: 'var(--text-primary)' }}>{alert.message}</p>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                     {(alert.kind === 'sl_hit' || alert.kind === 'tp_hit') && alert.trade_id && (
                         <button
                         onClick={() => handleConfirmClose(alert.id)}
-                        style={{ flex: 1, background: '#eab308', color: '#0f172a', border: 'none', padding: '0.4rem', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem' }}
+                        style={{ flex: 1, background: '#eab308', color: 'var(--bg-color)', border: 'none', padding: '0.4rem', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem' }}
                         >
                         Confirm Close
                         </button>
                     )}
                     <button
                     onClick={() => handleDismiss(alert.id)}
-                    style={{ flex: 1, background: '#334155', color: '#f8fafc', border: 'none', padding: '0.4rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
+                    style={{ flex: 1, background: 'var(--border-color)', color: 'var(--text-primary)', border: 'none', padding: '0.4rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
                     >
                     Dismiss
                     </button>

@@ -39,11 +39,11 @@ export default function ConditionChecklist({ strategyId, onChecksChange }) {
     if (rules.length === 0) return null;
 
     return (
-        <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '4px', border: '1px solid #334155', marginTop: '1rem' }}>
-        <h4 style={{ margin: '0 0 1rem 0', color: '#f8fafc' }}>Strategy Rules Checklist</h4>
+        <div style={{ background: 'var(--bg-color)', padding: '1rem', borderRadius: '4px', border: '1px solid var(--border-color)', marginTop: '1rem' }}>
+        <h4 style={{ margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>Strategy Rules Checklist</h4>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         {rules.map(rule => (
-            <label key={rule.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#cbd5e1', cursor: 'pointer' }}>
+            <label key={rule.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
             <input
             type="checkbox"
             checked={checks[rule.id] || false}

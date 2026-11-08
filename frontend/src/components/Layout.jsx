@@ -17,7 +17,7 @@ export default function Layout() {
             <Sidebar />
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 {maintenanceMode && (
-                    <div style={{ background: '#eab308', color: '#0f172a', padding: '0.5rem', textAlign: 'center', fontWeight: 'bold', fontSize: '14px', zIndex: 1000 }}>
+                    <div style={{ background: '#eab308', color: 'var(--bg-color)', padding: '0.5rem', textAlign: 'center', fontWeight: 'bold', fontSize: '14px', zIndex: 1000 }}>
                         ⚠️ System is currently in maintenance mode. Some features are disabled.
                     </div>
                 )}

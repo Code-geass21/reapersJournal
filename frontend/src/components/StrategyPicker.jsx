@@ -24,8 +24,8 @@ export default function StrategyPicker({ selectedIds, onChange }) {
             onClick={() => toggleStrategy(s.id)}
             type="button"
             style={{
-                background: selectedIds.includes(s.id) ? '#22d3ee' : '#334155',
-                              color: selectedIds.includes(s.id) ? '#0f172a' : '#f8fafc',
+                background: selectedIds.includes(s.id) ? 'var(--accent)' : 'var(--border-color)',
+                              color: selectedIds.includes(s.id) ? 'var(--bg-color)' : 'var(--text-primary)',
                               border: 'none', padding: '0.25rem 0.75rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'
             }}
             >

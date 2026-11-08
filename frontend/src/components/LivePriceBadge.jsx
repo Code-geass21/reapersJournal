@@ -3,7 +3,7 @@ import React from 'react';
 export default function LivePriceBadge({ liveData, isLong }) {
     if (!liveData) {
         return (
-            <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '4px', background: '#334155', color: '#94a3b8' }}>
+            <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'var(--border-color)', color: 'var(--text-muted)' }}>
             Fetching...
             </span>
         );
@@ -15,8 +15,8 @@ export default function LivePriceBadge({ liveData, isLong }) {
     const hasPnl = unrealized_pnl !== null && unrealized_pnl !== undefined;
     const isProfitable = hasPnl && unrealized_pnl >= 0;
 
-    const color = hasPnl ? (isProfitable ? '#22c55e' : '#ef4444') : '#94a3b8';
-    const bgColor = hasPnl ? (isProfitable ? '#22c55e20' : '#ef444420') : '#334155';
+    const color = hasPnl ? (isProfitable ? '#22c55e' : '#ef4444') : 'var(--text-muted)';
+    const bgColor = hasPnl ? (isProfitable ? '#22c55e20' : '#ef444420') : 'var(--border-color)';
 
     const formatStaleness = (secs) => {
         if (!secs) return "Data is stale";

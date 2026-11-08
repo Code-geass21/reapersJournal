@@ -60,10 +60,10 @@ export default function Sidebar() {
     const linkStyle = ({ isActive }) => ({
         display: 'block',
         padding: '0.75rem 1rem',
-        color: isActive ? '#22d3ee' : '#cbd5e1',
+        color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
         textDecoration: 'none',
         fontWeight: isActive ? 'bold' : 'normal',
-        background: isActive ? '#334155' : 'transparent',
+        background: isActive ? 'var(--border-color)' : 'transparent',
         borderRadius: '4px',
         marginBottom: '0.5rem',
         transition: 'background 0.2s, color 0.2s'
@@ -72,11 +72,11 @@ export default function Sidebar() {
     return (
         <aside style={{
             width: '250px',
-            background: '#1e293b',
+            background: 'var(--bg-panel)',
             padding: '2rem 1rem',
             display: 'flex',
             flexDirection: 'column',
-            borderRight: '1px solid #334155',
+            borderRight: '1px solid var(--border-color)',
             height: '100vh',
             boxSizing: 'border-box'
         }}>
@@ -104,11 +104,11 @@ export default function Sidebar() {
                 width: '40px',
                 height: '40px',
                 borderRadius: '50%',
-                background: '#334155',
+                background: 'var(--border-color)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#f8fafc',
+                color: 'var(--text-primary)',
                 fontWeight: 'bold'
             }}>
             {profile?.display_name?.charAt(0) ||
@@ -117,7 +117,7 @@ export default function Sidebar() {
         )}
 
         <h2 style={{
-            color: '#22d3ee',
+            color: 'var(--accent)',
             margin: 0,
             fontSize: '1.25rem'
         }}>
@@ -136,14 +136,14 @@ export default function Sidebar() {
 
         <div style={{
             marginTop: 'auto',
-            borderTop: '1px solid #334155',
+            borderTop: '1px solid var(--border-color)',
             paddingTop: '1rem',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between'
         }}>
         <span style={{
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
             fontSize: '0.875rem'
         }}>
         Theme
@@ -152,9 +152,9 @@ export default function Sidebar() {
         <button
         onClick={toggleTheme}
         style={{
-            background: '#334155',
+            background: 'var(--border-color)',
             border: 'none',
-            color: '#f8fafc',
+            color: 'var(--text-primary)',
             padding: '0.25rem 0.5rem',
             borderRadius: '4px',
             cursor: 'pointer'

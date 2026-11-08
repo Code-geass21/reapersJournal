@@ -1,10 +1,35 @@
+:root {
+    --bg-color: #0f172a;
+    --bg-panel: #1e293b;
+    --border-color: #334155;
+    --text-primary: #f8fafc;
+    --text-secondary: #cbd5e1;
+    --text-muted: #94a3b8;
+    --accent: #22d3ee;
+}
+
+[data-theme="light"] {
+    --bg-color: #f1f5f9;
+    --bg-panel: #ffffff;
+    --border-color: #cbd5e1;
+    --text-primary: #0f172a;
+    --text-secondary: #334155;
+    --text-muted: #64748b;
+    --accent: #0284c7; /* Darker blue for contrast on white backgrounds */
+}
+
 body {
     margin: 0;
-    background-color: #0f172a; /* Navy dark background */
-    color: #22d3ee; /* Aqua-blue accent */
+    background-color: var(--bg-color);
+    color: var(--text-primary);
     font-family: system-ui, -apple-system, sans-serif;
 }
 
 .container {
     padding: 2rem;
+}
+
+/* Smooth transitions for theme toggle */
+body, div, span, button, input, select, textarea, table, th, td, tr, header, aside, main, nav {
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }

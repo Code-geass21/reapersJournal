@@ -18,9 +18,9 @@ export default function ClockIST() {
     });
 
     return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#0f172a', padding: '0.5rem 1rem', borderRadius: '4px', border: '1px solid #334155' }}>
-        <span style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 'bold' }}>IST</span>
-        <span style={{ color: '#22d3ee', fontFamily: 'monospace', fontSize: '1.125rem' }}>{timeString}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-color)', padding: '0.5rem 1rem', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
+        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 'bold' }}>IST</span>
+        <span style={{ color: 'var(--accent)', fontFamily: 'monospace', fontSize: '1.125rem' }}>{timeString}</span>
         </div>
     );
 }

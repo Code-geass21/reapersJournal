@@ -140,15 +140,15 @@ export default function StrategyDetail() {
         <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
         <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-        <Link to="/strategies" style={{ color: '#94a3b8', textDecoration: 'none', marginBottom: '1rem', display: 'inline-block' }}>
+        <Link to="/strategies" style={{ color: 'var(--text-muted)', textDecoration: 'none', marginBottom: '1rem', display: 'inline-block' }}>
         ← Back to Strategies
         </Link>
-        <h2 style={{ margin: '0 0 0.5rem 0', color: '#22d3ee' }}>{strategy.name}</h2>
-        {strategy.description && <p style={{ color: '#cbd5e1', marginTop: 0 }}>{strategy.description}</p>}
+        <h2 style={{ margin: '0 0 0.5rem 0', color: 'var(--accent)' }}>{strategy.name}</h2>
+        {strategy.description && <p style={{ color: 'var(--text-secondary)', marginTop: 0 }}>{strategy.description}</p>}
         </div>
 
-        <div style={{ textAlign: 'right', background: '#1e293b', padding: '1rem', borderRadius: '8px' }}>
-        <div style={{ fontSize: '0.875rem', color: '#94a3b8' }}>Total Strategy Balance</div>
+        <div style={{ textAlign: 'right', background: 'var(--bg-panel)', padding: '1rem', borderRadius: '8px' }}>
+        <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Total Strategy Balance</div>
         <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: balanceData.total_balance >= 0 ? '#22c55e' : '#ef4444', marginBottom: '0.5rem' }}>
         ${balanceData.total_balance.toFixed(2)}
         </div>
@@ -163,14 +163,14 @@ export default function StrategyDetail() {
         <h3 style={{ margin: 0 }}>Strategy Rules</h3>
         <button
         onClick={() => isRuleFormOpen ? resetRuleForm() : setIsRuleFormOpen(true)}
-        style={{ background: '#334155', color: '#f8fafc', padding: '0.5rem 1rem', border: 'none', cursor: 'pointer', borderRadius: '4px' }}
+        style={{ background: 'var(--border-color)', color: 'var(--text-primary)', padding: '0.5rem 1rem', border: 'none', cursor: 'pointer', borderRadius: '4px' }}
         >
         {isRuleFormOpen ? 'Cancel' : '+ Add Rule'}
         </button>
         </div>
 
         {isRuleFormOpen && (
-            <div style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
+            <div style={{ background: 'var(--bg-panel)', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
             <form onSubmit={handleSaveRule} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div style={{ display: 'flex', gap: '1rem' }}>
             <select
@@ -183,7 +183,7 @@ export default function StrategyDetail() {
             <option value="risk">Risk Rule</option>
             <option value="filter">Filter</option>
             </select>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#cbd5e1' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
             <input
             type="checkbox"
             checked={ruleForm.is_required}
@@ -200,7 +200,7 @@ export default function StrategyDetail() {
             style={{ padding: '0.5rem' }}
             />
             <div>
-            <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#94a3b8' }}>Parameters (JSON)</label>
+            <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: 'var(--text-muted)' }}>Parameters (JSON)</label>
             <textarea
             placeholder='{"threshold": 200}'
         value={ruleForm.params}
@@ -208,7 +208,7 @@ export default function StrategyDetail() {
         style={{ padding: '0.5rem', width: '100%', minHeight: '60px', fontFamily: 'monospace' }}
         />
         </div>
-        <button type="submit" style={{ background: '#22d3ee', color: '#0f172a', padding: '0.5rem', fontWeight: 'bold', border: 'none', cursor: 'pointer', borderRadius: '4px' }}>
+        <button type="submit" style={{ background: 'var(--accent)', color: 'var(--bg-color)', padding: '0.5rem', fontWeight: 'bold', border: 'none', cursor: 'pointer', borderRadius: '4px' }}>
         {editingRuleId ? 'Update Rule' : 'Save Rule'}
         </button>
         </form>
@@ -216,26 +216,26 @@ export default function StrategyDetail() {
         )}
 
         {rules.length === 0 ? (
-            <p style={{ color: '#94a3b8' }}>No rules configured yet.</p>
+            <p style={{ color: 'var(--text-muted)' }}>No rules configured yet.</p>
         ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '3rem' }}>
             {rules.map(rule => (
-                <div key={rule.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#1e293b', padding: '1rem', borderRadius: '4px' }}>
+                <div key={rule.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-panel)', padding: '1rem', borderRadius: '4px' }}>
                 <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
                 <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', padding: '0.2rem 0.5rem', borderRadius: '4px', background: rule.rule_type === 'risk' ? '#ef4444' : rule.rule_type === 'entry' ? '#22c55e' : '#3b82f6', color: 'white' }}>
                 {rule.rule_type}
                 </span>
-                <strong style={{ color: rule.is_required ? '#f8fafc' : '#94a3b8' }}>{rule.label}</strong>
+                <strong style={{ color: rule.is_required ? 'var(--text-primary)' : 'var(--text-muted)' }}>{rule.label}</strong>
                 </div>
                 {Object.keys(rule.params).length > 0 && (
-                    <pre style={{ margin: '0.5rem 0 0 0', fontSize: '0.8rem', color: '#94a3b8', background: '#0f172a', padding: '0.5rem', borderRadius: '4px' }}>
+                    <pre style={{ margin: '0.5rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)', background: 'var(--bg-color)', padding: '0.5rem', borderRadius: '4px' }}>
                     {JSON.stringify(rule.params)}
                     </pre>
                 )}
                 </div>
                 <div style={{ display: 'flex', gap: '1rem' }}>
-                <button onClick={() => handleEditRuleClick(rule)} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.875rem' }}>Edit</button>
+                <button onClick={() => handleEditRuleClick(rule)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.875rem' }}>Edit</button>
                 <button onClick={() => handleDeleteRule(rule.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem' }}>×</button>
                 </div>
                 </div>
@@ -243,20 +243,20 @@ export default function StrategyDetail() {
             </div>
         )}
 
-        <hr style={{ borderColor: '#334155', margin: '2rem 0' }} />
+        <hr style={{ borderColor: 'var(--border-color)', margin: '2rem 0' }} />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <h3 style={{ margin: 0 }}>Funding History</h3>
         <button
         onClick={() => setIsDepositFormOpen(!isDepositFormOpen)}
-        style={{ background: '#334155', color: '#f8fafc', padding: '0.5rem 1rem', border: 'none', cursor: 'pointer', borderRadius: '4px' }}
+        style={{ background: 'var(--border-color)', color: 'var(--text-primary)', padding: '0.5rem 1rem', border: 'none', cursor: 'pointer', borderRadius: '4px' }}
         >
         {isDepositFormOpen ? 'Cancel' : '+ Log Transaction'}
         </button>
         </div>
 
         {isDepositFormOpen && (
-            <div style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
+            <div style={{ background: 'var(--bg-panel)', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
             <form onSubmit={handleCreateDeposit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div style={{ display: 'flex', gap: '1rem' }}>
             <select
@@ -290,7 +290,7 @@ export default function StrategyDetail() {
             onChange={e => setNewDeposit({...newDeposit, note: e.target.value})}
             style={{ padding: '0.5rem' }}
             />
-            <button type="submit" style={{ background: '#22d3ee', color: '#0f172a', padding: '0.5rem', fontWeight: 'bold', border: 'none', cursor: 'pointer', borderRadius: '4px' }}>
+            <button type="submit" style={{ background: 'var(--accent)', color: 'var(--bg-color)', padding: '0.5rem', fontWeight: 'bold', border: 'none', cursor: 'pointer', borderRadius: '4px' }}>
             Save Transaction
             </button>
             </form>
@@ -298,17 +298,17 @@ export default function StrategyDetail() {
         )}
 
         {deposits.length === 0 ? (
-            <p style={{ color: '#94a3b8' }}>No funding history.</p>
+            <p style={{ color: 'var(--text-muted)' }}>No funding history.</p>
         ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '3rem' }}>
             {deposits.map(dep => (
-                <div key={dep.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#1e293b', padding: '1rem', borderRadius: '4px', borderLeft: `4px solid ${dep.kind === 'deposit' ? '#22c55e' : '#ef4444'}` }}>
+                <div key={dep.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-panel)', padding: '1rem', borderRadius: '4px', borderLeft: `4px solid ${dep.kind === 'deposit' ? '#22c55e' : '#ef4444'}` }}>
                 <div>
-                <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>{dep.date}</div>
-                <div style={{ color: '#f8fafc', fontWeight: 'bold' }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{dep.date}</div>
+                <div style={{ color: 'var(--text-primary)', fontWeight: 'bold' }}>
                 {dep.kind === 'deposit' ? '+' : '-'}${parseFloat(dep.amount).toFixed(2)}
                 </div>
-                {dep.note && <div style={{ color: '#cbd5e1', fontSize: '0.875rem', marginTop: '0.25rem' }}>{dep.note}</div>}
+                {dep.note && <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: '0.25rem' }}>{dep.note}</div>}
                 </div>
                 <button onClick={() => handleDeleteDeposit(dep.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem' }}>×</button>
                 </div>

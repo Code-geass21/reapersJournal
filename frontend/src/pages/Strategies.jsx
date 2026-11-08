@@ -88,7 +88,7 @@ export default function Strategies() {
         <h2 style={{ margin: 0 }}>My Strategies</h2>
         <button
         onClick={() => isFormOpen ? resetForm() : setIsFormOpen(true)}
-        style={{ background: '#22d3ee', color: '#0f172a', padding: '0.5rem 1rem', border: 'none', fontWeight: 'bold', cursor: 'pointer', borderRadius: '4px' }}
+        style={{ background: 'var(--accent)', color: 'var(--bg-color)', padding: '0.5rem 1rem', border: 'none', fontWeight: 'bold', cursor: 'pointer', borderRadius: '4px' }}
         >
         {isFormOpen ? 'Cancel' : '+ New Strategy'}
         </button>
@@ -97,7 +97,7 @@ export default function Strategies() {
         {error && <p style={{ color: '#ef4444' }}>{error}</p>}
 
         {isFormOpen && (
-            <div style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
+            <div style={{ background: 'var(--bg-panel)', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <input
             placeholder="Strategy Name (e.g., London Breakout)"
@@ -157,7 +157,7 @@ export default function Strategies() {
                 </div>
             )}
 
-            <button type="submit" style={{ background: '#22d3ee', color: '#0f172a', padding: '0.5rem', fontWeight: 'bold', border: 'none', cursor: 'pointer', marginTop: '0.5rem', borderRadius: '4px' }}>
+            <button type="submit" style={{ background: 'var(--accent)', color: 'var(--bg-color)', padding: '0.5rem', fontWeight: 'bold', border: 'none', cursor: 'pointer', marginTop: '0.5rem', borderRadius: '4px' }}>
             {editingId ? 'Update Strategy' : 'Save Strategy'}
             </button>
             </form>
@@ -165,26 +165,26 @@ export default function Strategies() {
         )}
 
         {strategies.length === 0 && !isFormOpen ? (
-            <p style={{ color: '#94a3b8' }}>You haven't created any strategies yet.</p>
+            <p style={{ color: 'var(--text-muted)' }}>You haven't created any strategies yet.</p>
         ) : (
             <div style={{ display: 'grid', gap: '1rem' }}>
             {strategies.map(s => (
-                <div key={s.id} style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '8px', borderLeft: '4px solid #22d3ee' }}>
+                <div key={s.id} style={{ background: 'var(--bg-panel)', padding: '1.5rem', borderRadius: '8px', borderLeft: '4px solid var(--accent)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                 <h3 style={{ margin: '0 0 0.5rem 0' }}>
-                <Link to={`/strategies/${s.id}`} style={{ color: s.is_active ? '#f8fafc' : '#94a3b8', textDecoration: 'none' }}>
+                <Link to={`/strategies/${s.id}`} style={{ color: s.is_active ? 'var(--text-primary)' : 'var(--text-muted)', textDecoration: 'none' }}>
                 {s.name} {!s.is_active && <span style={{fontSize: '0.8rem', fontWeight: 'normal'}}>(Archived)</span>} →
                 </Link>
                 </h3>
-                {s.description && <p style={{ margin: '0 0 1rem 0', color: '#cbd5e1' }}>{s.description}</p>}
+                {s.description && <p style={{ margin: '0 0 1rem 0', color: 'var(--text-secondary)' }}>{s.description}</p>}
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button onClick={() => handleEditClick(s)} style={{ background: 'transparent', border: '1px solid #334155', color: '#94a3b8', cursor: 'pointer', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}>Edit</button>
+                <button onClick={() => handleEditClick(s)} style={{ background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-muted)', cursor: 'pointer', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}>Edit</button>
                 <button onClick={() => handleDelete(s.id)} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', cursor: 'pointer', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}>Delete</button>
                 </div>
                 </div>
-                <div style={{ display: 'flex', gap: '1rem', fontSize: '0.875rem', color: '#94a3b8' }}>
+                <div style={{ display: 'flex', gap: '1rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
                 <span><strong>Market:</strong> {s.market}</span>
                 <span><strong>Mode:</strong> {s.funding_mode === 'systematic' ? 'Systematic SIP' : 'Manual'}</span>
                 {s.funding_mode === 'systematic' && s.sip_amount && (
