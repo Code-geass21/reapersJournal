@@ -13,6 +13,11 @@ export default function Settings() {
     const [allUsers, setAllUsers] = useState([]);
     const [userRole, setUserRole] = useState('user');
 
+    // Admin Actions State
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [userToDelete, setUserToDelete] = useState(null);
+    const [adminPassword, setAdminPassword] = useState('');
+
     const [profile, setProfile] = useState({ display_name: '' });
     const [passwords, setPasswords] = useState({ current_password: '', new_password: '' });
     const [avatarUploading, setAvatarUploading] = useState(false);
@@ -185,29 +190,28 @@ export default function Settings() {
         }
     };
 
-    const handleDeleteUser = async (userId) => {
-        const password = window.prompt("WARNING: This permanently deletes the user and ALL their trades, images, and data.\n\nEnter your admin password to confirm:");
-
-        if (!password) {
-            return; // Cancelled or empty
-        }
-
+    // Replace the old handleDeleteUser with this:
+    // Replace the old handleDeleteUser with this:
+    const confirmDeleteUser = async (e) => {
+        e.preventDefault();
         try {
             const formData = new FormData();
-            formData.append('password', password);
+            formData.append('password', adminPassword);
 
-            // Change from api.delete to api.delete with data (axios specific way to send body in DELETE)
-            await api.delete(`/users/${userId}`, {
+            await api.delete(`/users/${userToDelete.id}`, {
                 data: formData,
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 
-            // Refresh the user list after successful deletion
             const res = await api.get('/users/');
             setAllUsers(res.data);
             alert('User successfully deleted.');
         } catch (err) {
             alert(err.response?.data?.detail || 'Delete failed');
+        } finally {
+            setDeleteModalOpen(false);
+            setUserToDelete(null);
+            setAdminPassword('');
         }
     };
 
@@ -373,8 +377,20 @@ export default function Settings() {
                 </td>
                 <td style={{ padding: '1rem 0', textAlign: 'right' }}>
                 <button
-                onClick={() => handleDeleteUser(u.id)}
-                style={{ background: 'transparent', color: '#ef4444', border: '1px solid #ef4444', padding: '0.3rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer' }}
+                onClick={() => {
+                    setUserToDelete(u);
+                    setAdminPassword('');
+                    setDeleteModalOpen(true);
+                }}
+                style={{
+                    background: 'transparent',
+                    color: '#ef4444',
+                    border: '1px solid #ef4444',
+                    padding: '0.3rem 0.5rem',
+                    borderRadius: '4px',
+                    fontSize: '0.75rem',
+                    cursor: 'pointer'
+                }}
                 >
                 Delete
                 </button>
@@ -421,6 +437,29 @@ export default function Settings() {
             {restoring ? 'Restoring Data...' : 'Overwrite & Restore'}
             </button>
             </form>
+            </div>
+        )}
+        {/* FIX FOR BUG 61: Secure Password Modal */}
+        {deleteModalOpen && (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                <div style={{ background: '#1e293b', padding: '2rem', borderRadius: '8px', width: '300px' }}>
+                    <h3 style={{ margin: '0 0 1rem 0', color: '#ef4444' }}>Delete {userToDelete?.username}?</h3>
+                    <p style={{ fontSize: '0.875rem', color: '#94a3b8', marginBottom: '1rem' }}>This permanently wipes all their trades and images.</p>
+                    <form onSubmit={confirmDeleteUser}>
+                        <input
+                            type="password"
+                            placeholder="Enter your admin password"
+                            value={adminPassword}
+                            onChange={e => setAdminPassword(e.target.value)}
+                            required
+                            style={{ width: '100%', padding: '0.75rem', background: '#0f172a', border: '1px solid #334155', color: '#f8fafc', borderRadius: '4px', marginBottom: '1rem' }}
+                        />
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                            <button type="submit" style={{ flex: 1, background: '#ef4444', color: '#f8fafc', padding: '0.5rem', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Confirm</button>
+                            <button type="button" onClick={() => setDeleteModalOpen(false)} style={{ flex: 1, background: 'transparent', color: '#94a3b8', padding: '0.5rem', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>
+                        </div>
+                    </form>
+                </div>
             </div>
         )}
         </div>

@@ -1,13 +1,18 @@
+import time  # <-- Required for cache expiration checks
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
+
 from app.database import get_db
 from app.config import settings
 from app.models.user import User
-from app.models.setting import AppSetting # FIX FOR BUG 35: Import setting model
+from app.models.setting import AppSetting  # FIX FOR BUG 35: Import setting model
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+# FIX FOR BUG 66: Simple in-memory cache to save 1 query per API request
+_maintenance_cache = {"is_active": False, "expires_at": 0}
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
@@ -27,21 +32,23 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None:
         raise credentials_exception
 
-    # backend/app/api/deps.py (Snippet for get_current_user)
-
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is disabled")
 
-    # FIX FOR BUG 47: Compare JSONB boolean correctly to Python True
-    maintenance_setting = db.query(AppSetting).filter(AppSetting.key == 'maintenance_mode').first()
+    # FIX FOR BUG 66: Use cached maintenance setting if not expired
+    global _maintenance_cache
+    current_time = time.time()
 
-    if maintenance_setting and maintenance_setting.value is True:
-        # If maintenance is on, only admins can proceed
-        if user.role != 'admin':
-            raise HTTPException(
-                status_code=503,
-                detail="System is currently in maintenance mode. Please try again later."
-            )
+    if current_time > _maintenance_cache["expires_at"]:
+        setting = db.query(AppSetting).filter(AppSetting.key == 'maintenance_mode').first()
+        _maintenance_cache["is_active"] = setting and setting.value is True
+        _maintenance_cache["expires_at"] = current_time + 60.0  # Cache for 60 seconds
+
+    if _maintenance_cache["is_active"] and user.role != 'admin':
+        raise HTTPException(
+            status_code=503,
+            detail="System is currently in maintenance mode. Please try again later."
+        )
 
     return user
 

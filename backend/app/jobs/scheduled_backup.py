@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models.user import User
 from app.services import backup_service
+from app.services import log_service  # Available if needed globally, but inline import works too
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -15,13 +16,13 @@ _last_backup_date = None
 
 def run():
     """
-    Checks if an automated backup is due, and generates a zip payload for the admin.
+    Checks if an automated backup is due, prunes old logs, and generates a zip payload for the admin.
     """
     global _last_backup_date
     current_date = datetime.now(timezone.utc).date()
 
     if _last_backup_date == current_date:
-        return # Backup already ran today
+        return  # Backup already ran today
 
     db: Session = SessionLocal()
     try:
@@ -31,6 +32,11 @@ def run():
             return
 
         logger.info(f"Starting automated daily backup for admin user {admin.username}...")
+
+        # FIX FOR BUG 64: Prune logs older than 30 days before backing up
+        deleted = log_service.prune_old_logs(db, retention_days=30)
+        if deleted > 0:
+            logger.info(f"Pruned {deleted} old entries from app_logs.")
 
         # We reuse the backup service which dumps to the mounted /app/backups volume
         zip_filepath = backup_service.create_user_backup(db, admin.id)

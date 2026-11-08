@@ -1,6 +1,9 @@
+import logging
+from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 from app.models.app_log import AppLog
-import logging
+
+logger = logging.getLogger(__name__)
 
 # FIX FOR BUG 32: Import the contextvar from main (delayed import to avoid circular dependency issues)
 def get_current_request_id():
@@ -9,8 +12,6 @@ def get_current_request_id():
         return request_id_contextvar.get()
     except Exception:
         return "unknown"
-
-logger = logging.getLogger(__name__)
 
 def write(
     db: Session,
@@ -54,5 +55,17 @@ def write(
 
     except Exception as e:
         logger.error(f"Failed to write to app_logs: {e}")
-        # Only rollback if we are NOT in an active transaction to avoid breaking the caller,
-        # but since we are just flushing now, we should generally let the caller handle errors.
+
+
+def prune_old_logs(db: Session, retention_days: int = 30) -> int:
+    """FIX FOR BUG 64: Prevent app_logs from growing infinitely."""
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
+
+    try:
+        deleted_count = db.query(AppLog).filter(AppLog.ts < cutoff_date).delete()
+        db.commit()
+        return deleted_count
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to prune old logs: {e}")
+        return 0

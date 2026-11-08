@@ -1,4 +1,3 @@
-
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -14,11 +13,12 @@ from app.services import performance_service
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
+
 @router.get("/performance", response_model=PerformanceStatsOut)
 def get_performance(
     strategy_ids: Optional[str] = Query(None, description="Comma-separated strategy IDs"),
-    start_date: Optional[str] = Query(None),  # <-- ADDED
-    end_date: Optional[str] = Query(None),    # <-- ADDED
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -52,7 +52,10 @@ def get_performance(
 
 
 @router.get("/news")
-def get_dashboard_news(db: Session = Depends(get_db)):
+def get_dashboard_news(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)  # <-- FIX FOR BUG 63
+):
     """Returns the next 5 upcoming high/medium impact economic events."""
 
     now = datetime.now(timezone.utc)
