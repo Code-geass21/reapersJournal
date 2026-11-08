@@ -77,8 +77,8 @@ def _calculate_weighted_r_multiple(db: Session, trade: Trade) -> float:
 
 def _recalculate_trade_metrics(db: Session, trade: Trade, instrument: Instrument):
     """
-    FIX FOR BUG 54: Single source of truth for P&L math.
-    Rebuilds booked P&L and R-multiple entirely from executions.
+    FIX FOR BUG 54 & 72: Single source of truth for P&L math.
+    Rebuilds booked P&L and R-multiple entirely from executions while locking historical FX rates.
     """
     exits = db.query(TradeExecution).filter(
         TradeExecution.trade_id == trade.id,
@@ -90,15 +90,24 @@ def _recalculate_trade_metrics(db: Session, trade: Trade, instrument: Instrument
     total_pnl = Decimal('0')
     try:
         for ex in exits:
+            # FIX FOR BUG 72: Re-use the historical exchange rate locked on the execution
+            force_rate = Decimal(str(ex.exchange_rate)) if ex.exchange_rate else None
+
             pnl_data = pnl_service.calculate_pnl(
                 db=db,
                 direction=trade.direction,
                 entry_price=float(trade.entry_price),
                 exit_price=float(ex.price),
                 size=float(ex.size),
-                instrument=inst_dict
+                instrument=inst_dict,
+                force_fx_rate=force_rate
             )
             total_pnl += Decimal(str(pnl_data['pnl_realized']))
+
+            # Retroactively save the rate if this was a pre-015 trade
+            if not ex.exchange_rate:
+                ex.exchange_rate = pnl_data.get('fx_rate')
+
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -128,8 +137,8 @@ def create_trade(db: Session, user_id: int, trade_in: TradeCreate) -> Trade:
 
     trade_data = trade_in.model_dump(exclude={"condition_checks", "initial_execution"})
 
-    # FIX FOR BUG 52: Record initial risk on creation
-    if trade_in.stop_loss and not trade_in.initial_stop_loss:
+    # FIX FOR BUG 52 & 69: Record initial risk safely without checking missing schema fields
+    if trade_in.stop_loss:
         trade_data['initial_stop_loss'] = trade_in.stop_loss
 
     new_trade = Trade(**trade_data, user_id=user_id)
@@ -197,18 +206,19 @@ def update_trade(db: Session, user_id: int, trade_id: int, trade_in: TradeUpdate
     total_exited = sum(Decimal(str(e.size)) for e in exits)
     current_open_size = Decimal(str(trade.size)) - total_exited
 
-    # FIX FOR BUG 51: Prevent open size from going negative via form edits
+    # FIX FOR BUG 51 & 50: Quantize to prevent precision ghosts
     if 'size' in update_data:
-        new_size = Decimal(str(update_data['size']))
+        new_size = Decimal(str(update_data['size'])).quantize(Decimal('0.01'))
         if new_size < total_exited:
             db.rollback()
             raise HTTPException(status_code=400, detail=f"Cannot reduce total size below already exited amount ({total_exited} lots).")
 
     if trade.status == 'closed':
         forbidden_edits = ['entry_price', 'size', 'direction', 'instrument_id', 'strategy_id', 'status', 'exit_price']
-        if any(k in update_data for k in forbidden_edits):
-            db.rollback()
-            raise HTTPException(status_code=400, detail="Cannot modify core financial details of a closed trade.")
+        for key in forbidden_edits:
+            if key in update_data and update_data[key] != getattr(trade, key):
+                db.rollback()
+                raise HTTPException(status_code=400, detail="Cannot modify core financial details of a closed trade.")
 
     if trade.status == 'open' and ('entry_price' in update_data or 'size' in update_data):
         entry_exec = db.query(TradeExecution).filter(
@@ -229,14 +239,34 @@ def update_trade(db: Session, user_id: int, trade_id: int, trade_in: TradeUpdate
             raise HTTPException(status_code=400, detail="Exit price is required to close a trade")
 
         closed_at = update_data.get('closed_at') or datetime.now(timezone.utc)
+        if closed_at.tzinfo is None:
+            closed_at = closed_at.replace(tzinfo=timezone.utc)
         update_data['closed_at'] = closed_at
+
+        instrument = db.query(Instrument).filter(Instrument.id == trade.instrument_id).first()
+        inst_dict = {"contract_size": instrument.contract_size, "pip_size": instrument.pip_size, "quote_ccy": instrument.quote_ccy}
+
+        pnl_data = pnl_service.calculate_pnl(
+            db=db,
+            direction=trade.direction,
+            entry_price=float(trade.entry_price),
+            exit_price=float(update_data['exit_price']),
+            size=float(current_open_size),
+            instrument=inst_dict
+        )
+
+        current_fees = Decimal(str(trade.fees or '0'))
+        already_booked_pnl = float(trade.pnl_realized or 0)
+        final_chunk_pnl = pnl_data['pnl_realized']
+        update_data['pnl_realized'] = float(Decimal(str(already_booked_pnl)) + Decimal(str(final_chunk_pnl)) - current_fees)
 
         exit_execution = TradeExecution(
             trade_id=trade.id,
             execution_type='exit',
             price=update_data['exit_price'],
             size=float(current_open_size),
-            executed_at=closed_at
+            executed_at=closed_at,
+            exchange_rate=pnl_data.get('fx_rate')  # FIX FOR BUG 72
         )
         db.add(exit_execution)
         db.flush()
@@ -297,7 +327,7 @@ def add_execution(db: Session, user_id: int, trade_id: int, exec_in: TradeExecut
         db.rollback()
         raise HTTPException(status_code=400, detail="Execution price must be strictly greater than 0.")
 
-    # FIX FOR BUG 50: Use strict Decimal math to prevent precision ghost lots (e.g. 0.001 left open)
+    # FIX FOR BUG 50: Use strict Decimal math and quantization to prevent precision ghost lots
     exits = db.query(TradeExecution).filter(
         TradeExecution.trade_id == trade.id,
         TradeExecution.execution_type == 'exit'
@@ -306,12 +336,16 @@ def add_execution(db: Session, user_id: int, trade_id: int, exec_in: TradeExecut
     total_exited = sum(Decimal(str(e.size)) for e in exits)
     current_open_size = Decimal(str(trade.size)) - total_exited
 
-    exec_size = Decimal(str(exec_in.size))
+    exec_size = Decimal(str(exec_in.size)).quantize(Decimal('0.01'))
     if exec_size <= Decimal('0') or exec_size > current_open_size:
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Invalid size. Must be between 0.01 and {current_open_size}")
 
     execution_time = exec_in.executed_at if exec_in.executed_at else datetime.now(timezone.utc)
+
+    # FIX FOR BUG 77: Ensure tz-aware execution time
+    if execution_time.tzinfo is None:
+        execution_time = execution_time.replace(tzinfo=timezone.utc)
 
     # FIX FOR BUG 55: Validate execution bounds properly against DB records
     now_utc = datetime.now(timezone.utc)
@@ -324,19 +358,35 @@ def add_execution(db: Session, user_id: int, trade_id: int, exec_in: TradeExecut
         db.rollback()
         raise HTTPException(status_code=400, detail="Execution time cannot be in the future.")
 
+    instrument = db.query(Instrument).filter(Instrument.id == trade.instrument_id).first()
+    inst_dict = {"contract_size": instrument.contract_size, "pip_size": instrument.pip_size, "quote_ccy": instrument.quote_ccy}
+
+    pnl_data = pnl_service.calculate_pnl(
+        db=db,
+        direction=trade.direction,
+        entry_price=float(trade.entry_price),
+        exit_price=exec_in.price,
+        size=float(exec_size),
+        instrument=inst_dict
+    )
+
+    # Accumulate the realized P&L incrementally
+    current_pnl = float(trade.pnl_realized or 0.0)
+    trade.pnl_realized = current_pnl + pnl_data['pnl_realized']
+
     new_exec = TradeExecution(
         trade_id=trade.id,
         execution_type='exit',
         price=exec_in.price,
-        size=exec_in.size,
+        size=float(exec_size),
         executed_at=execution_time,
-        note=exec_in.note
+        note=exec_in.note,
+        exchange_rate=pnl_data.get('fx_rate')  # FIX FOR BUG 72
     )
     db.add(new_exec)
     db.flush()
 
     new_open_size = current_open_size - exec_size
-    instrument = db.query(Instrument).filter(Instrument.id == trade.instrument_id).first()
 
     # Liquidate when completely flat
     if new_open_size <= Decimal('0.00001'):
@@ -344,7 +394,7 @@ def add_execution(db: Session, user_id: int, trade_id: int, exec_in: TradeExecut
         trade.closed_at = execution_time
         trade.exit_price = exec_in.price
 
-    # Single source of truth calculation guarantees correct P&L matching
+    # Single source of truth calculation guarantees correct P&L and R-multiple matching
     _recalculate_trade_metrics(db, trade, instrument)
 
     log_service.write(db, action="trade.add_execution", user_id=user_id, entity_type="trade", entity_id=trade.id)

@@ -25,10 +25,10 @@ def restore_backup(
     if not file.filename.endswith('.zip'):
         raise HTTPException(status_code=400, detail="Only .zip backup files are allowed")
 
-    # 1. Verify password for security
+    # 1. Verify password for security (403 prevents triggering the global 401 logout interceptor)
     if not verify_password(password, current_user.password_hash):
          raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="Incorrect password. Restore aborted."
         )
 
@@ -44,7 +44,12 @@ def restore_backup(
         return {"detail": "Restore completed successfully."}
 
     except Exception as e:
-        # Clean up temp file on failure
-        if os.path.exists(temp_zip_path):
-            os.remove(temp_zip_path)
         raise HTTPException(status_code=500, detail=f"Restore failed: {str(e)}")
+
+    finally:
+        # Ensure temporary restore archive is cleaned up on both success and failure
+        if os.path.exists(temp_zip_path):
+            try:
+                os.remove(temp_zip_path)
+            except Exception as cleanup_err:
+                print(f"Warning: Could not remove temporary restore file {temp_zip_path}: {cleanup_err}")

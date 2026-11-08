@@ -41,7 +41,7 @@ class Trade(Base):
     strategy = relationship("Strategy", back_populates="trades")
     condition_checks = relationship("TradeConditionCheck", back_populates="trade", cascade="all, delete-orphan")
 
-    # NEW RELATIONSHIP
+    # Granular execution ledger supporting scale-ins and scale-outs
     executions = relationship("TradeExecution", back_populates="trade", cascade="all, delete-orphan", order_by="TradeExecution.executed_at")
 
 class TradeExecution(Base):
@@ -49,11 +49,12 @@ class TradeExecution(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     trade_id = Column(Integer, ForeignKey("trades.id", ondelete="CASCADE"), nullable=False)
-    execution_type = Column(String(10), nullable=False)
+    execution_type = Column(String(10), nullable=False)  # e.g., 'entry', 'exit', 'scale_in', 'scale_out'
     price = Column(Numeric(15, 5), nullable=False)
     size = Column(Numeric(15, 2), nullable=False)
     executed_at = Column(DateTime(timezone=True), server_default=func.now())
     note = Column(Text)
+    exchange_rate = Column(Numeric(15, 5))  # <-- ADDED FOR BUG 72
 
     trade = relationship("Trade", back_populates="executions")
 

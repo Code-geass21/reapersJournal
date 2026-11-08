@@ -12,19 +12,27 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
-// FIX FOR BUG 61: Global response interceptor for 401 and 503
+// FIX FOR BUG 61, 75 & 76: Global response interceptor for 401 and 503
+let maintenanceAlertShown = false;
+
 api.interceptors.response.use(
     (response) => response,
                               (error) => {
                                   if (error.response) {
-                                      // Token expired or invalid
+                                      // Token expired or invalid (skip for the login endpoint)
                                       if (error.response.status === 401) {
-                                          localStorage.removeItem('token');
-                                          window.location.href = '/';
+                                          const url = error.config.url || '';
+                                          if (!url.includes('/auth/login')) {
+                                              localStorage.removeItem('token');
+                                              window.location.href = '/';
+                                          }
                                       }
                                       // System under maintenance
                                       else if (error.response.status === 503) {
-                                          alert("System is currently in maintenance mode. Please try again later.");
+                                          if (!maintenanceAlertShown) {
+                                              maintenanceAlertShown = true;
+                                              window.dispatchEvent(new Event('maintenance-mode'));
+                                          }
                                       }
                                   }
                                   return Promise.reject(error);

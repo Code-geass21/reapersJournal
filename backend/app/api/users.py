@@ -152,9 +152,9 @@ def delete_user(
     if target_user_id == admin.id:
         raise HTTPException(status_code=400, detail="You cannot delete your own admin account")
 
-    # Verify the admin's password before executing the destructive action
+    # Verify the admin's password before executing the destructive action (403 prevents triggering 401 interceptor logout)
     if not verify_password(password, admin.password_hash):
-        raise HTTPException(status_code=401, detail="Incorrect admin password")
+        raise HTTPException(status_code=403, detail="Incorrect admin password")
 
     target_user = db.query(User).filter(User.id == target_user_id).first()
     if not target_user:

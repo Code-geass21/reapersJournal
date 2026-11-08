@@ -18,11 +18,12 @@ class TradeConditionCheckOut(TradeConditionCheckBase):
         from_attributes = True
 
 class TradeExecutionBase(BaseModel):
-    execution_type: Literal['entry', 'exit']
+    execution_type: Literal['entry', 'exit', 'scale_in', 'scale_out']
     price: float
     size: float
     note: Optional[str] = None
     executed_at: Optional[datetime] = None
+    exchange_rate: Optional[float] = None  # Aligned with Bug 72
 
 class TradeExecutionCreate(TradeExecutionBase):
     pass
@@ -36,8 +37,8 @@ class TradeExecutionOut(TradeExecutionBase):
 class TradeBase(BaseModel):
     strategy_id: int
     instrument_id: int
-    direction: str
-    status: str = 'open'
+    direction: Literal['long', 'short']
+    status: Literal['open', 'closed', 'cancelled'] = 'open'
     entry_price: float
     size: float
     stop_loss: Optional[float] = None
@@ -53,12 +54,11 @@ class TradeCreate(TradeBase):
 class TradeUpdate(BaseModel):
     strategy_id: Optional[int] = None
     instrument_id: Optional[int] = None
-    direction: Literal['long', 'short']
-    status: Literal['open', 'closed', 'cancelled'] = 'open'
+    direction: Optional[Literal['long', 'short']] = None
+    status: Optional[Literal['open', 'closed', 'cancelled']] = None
     entry_price: Optional[float] = None
     size: Optional[float] = None
     stop_loss: Optional[float] = None
-    initial_stop_loss: Optional[float] = None
     take_profit: Optional[float] = None
     closed_at: Optional[datetime] = None
     exit_price: Optional[float] = None
@@ -66,6 +66,7 @@ class TradeUpdate(BaseModel):
     notes: Optional[str] = None
     tags: Optional[List[str]] = None
     emotion: Optional[str] = None
+    # NOTE: initial_stop_loss is strictly omitted here to prevent retroactive tampering (Bug 74)
 
 class TradeOut(TradeBase):
     id: int

@@ -4,12 +4,20 @@ import api from '../utils/api';
 export function useLivePrices(refreshIntervalSecs = 3) {
     const [liveData, setLiveData] = useState({});
     const [error, setError] = useState(null);
+    const [isMaintenance, setIsMaintenance] = useState(false);
+
+    // Listen to global maintenance event dispatched by api.js interceptor
+    useEffect(() => {
+        const handleMaintenance = () => setIsMaintenance(true);
+        window.addEventListener('maintenance-mode', handleMaintenance);
+        return () => window.removeEventListener('maintenance-mode', handleMaintenance);
+    }, []);
 
     const fetchPrices = useCallback(async () => {
+        if (isMaintenance) return;
         try {
             if (!localStorage.getItem('token')) return;
 
-            // This only hits the local Postgres cache, so fast polling is virtually free
             const res = await api.get('/prices/open');
             const dataDict = {};
             res.data.forEach(item => {
@@ -20,25 +28,26 @@ export function useLivePrices(refreshIntervalSecs = 3) {
         } catch (err) {
             console.error("Failed to fetch live prices", err);
             setError(err);
+            if (err.response && err.response.status === 503) {
+                setIsMaintenance(true);
+            }
         }
-    }, []);
+    }, [isMaintenance]);
 
     useEffect(() => {
         let isMounted = true;
 
-        // Fetch instantly on mount
-        fetchPrices();
+        if (!isMaintenance) fetchPrices();
 
-        // Setup aggressive local polling loop
         const intervalId = setInterval(() => {
-            if (isMounted) fetchPrices();
+            if (isMounted && !isMaintenance) fetchPrices();
         }, refreshIntervalSecs * 1000);
 
             return () => {
                 isMounted = false;
                 clearInterval(intervalId);
             };
-    }, [fetchPrices, refreshIntervalSecs]);
+    }, [fetchPrices, refreshIntervalSecs, isMaintenance]);
 
     return { liveData, error, forceRefresh: fetchPrices };
 }
