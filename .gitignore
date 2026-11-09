@@ -13,6 +13,7 @@ git_history_dump.txt
 reapers_journal_status_v5.xlsx
 apply_theme.py
 reapers_journal_status_v6.xlsx
+reapers_journal_status_v7.xlsx
 
 # Python / FastAPI (Backend)
 __pycache__/
