@@ -34,11 +34,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-      # FIX FOR BUG 18: Add a start_period to allow migrations to finish before failing the healthcheck
       start_period: 30s
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      # FIX FOR BUG 65: The :? syntax causes docker-compose to throw an error if unset
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required in your environment}
       TZ: ${TZ}
       TWELVEDATA_API_KEY: ${TWELVEDATA_API_KEY}
@@ -69,26 +67,16 @@ services:
       - backups:/app/backups
       - uploads:/app/uploads
 
-  frontend:
-    build:
-      context: ./frontend
-    container_name: rj_frontend
-    restart: always
-    environment:
-      TZ: ${TZ}
-    expose:
-      - "5173"
-
   nginx:
     build:
-      context: ./nginx
+      context: .
+      dockerfile: ./nginx/Dockerfile
     container_name: rj_nginx
     restart: always
     ports:
       - "${PUBLIC_PORT:-54311}:80"
     depends_on:
       - backend
-      - frontend
 
 volumes:
   pgdata:

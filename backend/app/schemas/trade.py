@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 
@@ -14,23 +14,34 @@ class TradeConditionCheckOut(TradeConditionCheckBase):
     id: int
     trade_id: int
     created_at: datetime
+
     class Config:
         from_attributes = True
 
+# FIX FOR BUG 91: Enforce strict > 0 boundaries
 class TradeExecutionBase(BaseModel):
     execution_type: Literal['entry', 'exit', 'scale_in', 'scale_out']
-    price: float
-    size: float
+    price: float = Field(..., gt=0)
+    size: float = Field(..., gt=0)
     note: Optional[str] = None
     executed_at: Optional[datetime] = None
-    exchange_rate: Optional[float] = None  # Aligned with Bug 72
 
 class TradeExecutionCreate(TradeExecutionBase):
-    pass
+    pass # Note: exchange_rate is NOT exposed to the client here
+
+# FIX FOR BUG 91: Specific schema for initial execution to prevent spoofing
+class InitialTradeExecution(BaseModel):
+    execution_type: Literal['entry'] = 'entry'
+    price: float = Field(..., gt=0)
+    size: float = Field(..., gt=0)
+    note: Optional[str] = None
+    executed_at: Optional[datetime] = None
 
 class TradeExecutionOut(TradeExecutionBase):
     id: int
     trade_id: int
+    exchange_rate: Optional[float] = None
+
     class Config:
         from_attributes = True
 
@@ -39,17 +50,18 @@ class TradeBase(BaseModel):
     instrument_id: int
     direction: Literal['long', 'short']
     status: Literal['open', 'closed', 'cancelled'] = 'open'
-    entry_price: float
-    size: float
+    entry_price: float = Field(..., gt=0)
+    size: float = Field(..., gt=0)
     stop_loss: Optional[float] = None
     take_profit: Optional[float] = None
+    fees: Optional[float] = 0.0
     notes: Optional[str] = None
-    tags: List[str] = []
+    tags: Optional[List[str]] = None
     emotion: Optional[str] = None
 
 class TradeCreate(TradeBase):
     condition_checks: List[TradeConditionCheckCreate] = []
-    initial_execution: Optional[TradeExecutionCreate] = None
+    initial_execution: Optional[InitialTradeExecution] = None
 
 class TradeUpdate(BaseModel):
     strategy_id: Optional[int] = None

@@ -6,15 +6,19 @@ export function useLivePrices(refreshIntervalSecs = 3) {
     const [error, setError] = useState(null);
     const [isMaintenance, setIsMaintenance] = useState(false);
 
-    // Listen to global maintenance event dispatched by api.js interceptor
     useEffect(() => {
         const handleMaintenance = () => setIsMaintenance(true);
+        const handleRecovered = () => setIsMaintenance(false);
         window.addEventListener('maintenance-mode', handleMaintenance);
-        return () => window.removeEventListener('maintenance-mode', handleMaintenance);
+        window.addEventListener('maintenance-recovered', handleRecovered);
+        return () => {
+            window.removeEventListener('maintenance-mode', handleMaintenance);
+            window.removeEventListener('maintenance-recovered', handleRecovered);
+        };
     }, []);
 
     const fetchPrices = useCallback(async () => {
-        if (isMaintenance) return;
+        // REMOVED the strict `if (isMaintenance) return;` block so it can attempt a recovery poll
         try {
             if (!localStorage.getItem('token')) return;
 
@@ -32,16 +36,18 @@ export function useLivePrices(refreshIntervalSecs = 3) {
                 setIsMaintenance(true);
             }
         }
-    }, [isMaintenance]);
+    }, []);
 
     useEffect(() => {
         let isMounted = true;
+        fetchPrices();
 
-        if (!isMaintenance) fetchPrices();
+        // FIX FOR BUG 76: Back-off polling to 30s during maintenance to avoid spamming the offline backend
+        const currentInterval = isMaintenance ? 30000 : refreshIntervalSecs * 1000;
 
         const intervalId = setInterval(() => {
-            if (isMounted && !isMaintenance) fetchPrices();
-        }, refreshIntervalSecs * 1000);
+            if (isMounted) fetchPrices();
+        }, currentInterval);
 
             return () => {
                 isMounted = false;

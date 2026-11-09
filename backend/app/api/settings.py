@@ -30,6 +30,15 @@ def get_global_settings(
 ):
     return db.query(AppSetting).order_by(AppSetting.key.asc()).all()
 
+
+ALLOWED_GLOBAL_SETTINGS = {
+    "maintenance_mode": bool,
+    "allow_registration": bool,
+    "price_provider": ["twelvedata"],  # FIX FOR BUG 84: removed alphavantage
+    "price_refresh_secs": int
+}
+
+
 @router.put("/global/{key}", response_model=AppSettingOut)
 def update_global_setting(
     key: str,
@@ -37,17 +46,20 @@ def update_global_setting(
     db: Session = Depends(get_db),
     admin: User = Depends(get_admin_user)
 ):
+    if key not in ALLOWED_GLOBAL_SETTINGS:
+        raise HTTPException(status_code=400, detail=f"Unknown setting key: {key}")
+
+    expected_type = ALLOWED_GLOBAL_SETTINGS[key]
+
+    if isinstance(expected_type, list):
+        if setting_in.value not in expected_type:
+            raise HTTPException(status_code=400, detail=f"Invalid value for {key}. Allowed: {expected_type}")
+    elif not isinstance(setting_in.value, expected_type):
+        raise HTTPException(status_code=400, detail=f"{key} must be of type {expected_type.__name__}")
+
     setting = db.query(AppSetting).filter(AppSetting.key == key).first()
     if not setting:
         raise HTTPException(status_code=404, detail="Setting not found")
-
-    # FIX FOR BUG 84: Validate specific types per key to prevent bad JSON injections
-    if key in ['maintenance_mode', 'allow_registration']:
-        if not isinstance(setting_in.value, bool):
-            raise HTTPException(status_code=400, detail=f"{key} must be a boolean.")
-    elif key == 'price_provider':
-        if setting_in.value not in ['twelvedata', 'alphavantage']:
-            raise HTTPException(status_code=400, detail="Invalid price provider.")
 
     setting.value = setting_in.value
     db.commit()
@@ -70,6 +82,7 @@ def get_preferences(
         db.refresh(prefs)
 
     return prefs
+
 
 @router.put("/preferences", response_model=UserPreferenceOut)
 def update_preferences(

@@ -8,8 +8,15 @@ export default function Layout() {
 
     useEffect(() => {
         const handleMaintenance = () => setMaintenanceMode(true);
+        const handleRecover = () => setMaintenanceMode(false);
+
         window.addEventListener('maintenance-mode', handleMaintenance);
-        return () => window.removeEventListener('maintenance-mode', handleMaintenance);
+        window.addEventListener('maintenance-recovered', handleRecover);
+
+        return () => {
+            window.removeEventListener('maintenance-mode', handleMaintenance);
+            window.removeEventListener('maintenance-recovered', handleRecover);
+        };
     }, []);
 
     return (

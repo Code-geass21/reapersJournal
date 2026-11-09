@@ -14,11 +14,12 @@ def get_performance_stats(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None
 ):
-    # FIX FOR BUG 60: Include trades with realized P&L even if status != 'closed'
+    # FIX FOR BUGS 93 & 81: Only compute stats on fully closed trades,
+    # but include break-evens (removed the pnl_realized != 0 filter).
     query = db.query(Trade).filter(
         Trade.user_id == user_id,
-        Trade.pnl_realized.isnot(None),
-        Trade.pnl_realized != 0
+        Trade.status == 'closed',
+        Trade.pnl_realized.isnot(None)
     )
 
     dep_query = db.query(StrategyDeposit).join(Strategy).filter(Strategy.user_id == user_id)
@@ -90,10 +91,6 @@ def get_performance_stats(
     for t in trades:
         pnl = float(t.pnl_realized)
         is_win = 1 if pnl > 0 else 0
-        is_loss = 1 if pnl < 0 else 0
-
-        # FIX FOR BUG 81: Break-even trades must be counted as resolved
-        is_resolved = 1
 
         # Equity Curve & Drawdown
         cumulative += pnl
@@ -109,14 +106,15 @@ def get_performance_stats(
         date_str = dt.strftime("%Y-%m-%d %H:%M") if dt else ""
         equity_curve.append({"date": date_str, "cumulative_pnl": cumulative})
 
+        # FIX FOR BUG 81: Count ALL closed trades (including break-evens) in total counts
         if t.emotion:
-            emotion_data[t.emotion]["total"] += is_resolved
+            emotion_data[t.emotion]["total"] += 1
             emotion_data[t.emotion]["wins"] += is_win
             emotion_data[t.emotion]["pnl"] += pnl
 
         if t.tags:
             for tag in t.tags:
-                tag_data[tag]["total"] += is_resolved
+                tag_data[tag]["total"] += 1
                 tag_data[tag]["wins"] += is_win
                 tag_data[tag]["pnl"] += pnl
 

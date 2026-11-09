@@ -7,9 +7,8 @@
 
 ## 2. Admin & Account Management
 - **First User**: The first account registered automatically receives the `admin` role. 
-- **Global Locks**: By default, open registration is disabled after the first user. To allow others, the admin must set `allow_registration = true` in the DB `app_settings` table.
-- **Maintenance**: Setting `maintenance_mode = true` forces a `503 Service Unavailable` for all non-admin users. 
-- **User Deletion**: Admin deletion permanently wipes the user's trades, strategies, and physical image files from the volume.
+- **System Config UI**: Admins can toggle `maintenance_mode`, `allow_registration`, and adjust price refresh intervals dynamically via the **Settings > System** tab. These are hot-reloaded without needing a container restart.
+- **User Deletion**: Admin deletion permanently wipes the user's trades, strategies, and physical image files from the volume. This action requires password confirmation.
 
 ## 3. Backup and Restore
 - **Automated**: The worker generates a daily ZIP backup (JSON data + attachments) for the admin account to `/app/backups`.
@@ -19,3 +18,7 @@
 ## 4. Price & News Worker
 - **Polling**: The worker polls TwelveData every `PRICE_REFRESH_SECS` (default 300s). It only fetches symbols for *currently open* trades to minimize API quota usage.
 - **Timeouts**: If TwelveData times out or throws a 429, the worker logs it and retries safely on the next loop without crashing.
+
+## 5. Testing and Development
+- **Isolated Testing**: Running `pytest` automatically routes to an isolated SQLite database (`test_reapers.db`). It will not pollute your live Postgres database or your audit logs.
+- **Dependencies**: `pytest` and `httpx` are intentionally omitted from the production Docker image. Install them locally in a virtual environment (`pip install -r requirements-dev.txt`) to run the suite.

@@ -54,7 +54,7 @@ class TradeExecution(Base):
     size = Column(Numeric(15, 2), nullable=False)
     executed_at = Column(DateTime(timezone=True), server_default=func.now())
     note = Column(Text)
-    exchange_rate = Column(Numeric(15, 5))  # <-- ADDED FOR BUG 72
+    exchange_rate = Column(Numeric(20, 10))  # <-- ADDED FOR BUG 72
 
     trade = relationship("Trade", back_populates="executions")
 

@@ -1,14 +1,33 @@
 import pytest
 import uuid
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
 
 from app.main import app
-from app.database import SessionLocal
+from app.database import get_db, Base
 from app.models.user import User
 from app.models.instrument import Market, Instrument
 from app.models.strategy import Strategy
 from app.utils.security import get_password_hash, create_access_token
+
+# FIX FOR BUG 90: Isolate tests using a local SQLite database
+SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///./test_reapers.db"
+engine = create_engine(SQLALCHEMY_TEST_DATABASE_URL, connect_args={"check_same_thread": False})
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Create all tables in the test database on startup
+Base.metadata.create_all(bind=engine)
+
+# Override FastAPI's database dependency for the TestClient
+def override_get_db():
+    try:
+        db = TestingSessionLocal()
+        yield db
+    finally:
+        db.close()
+
+app.dependency_overrides[get_db] = override_get_db
 
 @pytest.fixture(scope="module")
 def client():
@@ -17,7 +36,7 @@ def client():
 
 @pytest.fixture(scope="module")
 def db():
-    session = SessionLocal()
+    session = TestingSessionLocal()
     yield session
     session.close()
 

@@ -153,22 +153,22 @@ export default function TradeForm() {
         </div>
         <div style={{ flex: 1 }}>
         <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: 'var(--text-muted)' }}>Entry Price</label>
-        <input type="number" step="any" value={trade.entry_price} onChange={e => setTrade({ ...trade, entry_price: e.target.value })} required style={{ width: '100%', padding: '0.5rem' }} />
+        <input type="number" step="any" value={trade.entry_price} onChange={e => setTrade({ ...trade, entry_price: e.target.value })} required disabled={trade.status === 'closed'} style={{ width: '100%', padding: '0.5rem' }} />
         </div>
         <div style={{ flex: 1 }}>
         <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: 'var(--text-muted)' }}>Position Size (Lots)</label>
-        <input type="number" step="any" value={trade.size} onChange={e => setTrade({ ...trade, size: e.target.value })} required style={{ width: '100%', padding: '0.5rem' }} />
+        <input type="number" step="any" value={trade.size} onChange={e => setTrade({ ...trade, size: e.target.value })} required disabled={trade.status === 'closed'} style={{ width: '100%', padding: '0.5rem' }} />
         </div>
         </div>
 
         <div style={{ display: 'flex', gap: '1rem' }}>
         <div style={{ flex: 1 }}>
         <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: 'var(--text-muted)' }}>Stop Loss</label>
-        <input type="number" step="any" value={trade.stop_loss} onChange={e => setTrade({ ...trade, stop_loss: e.target.value })} style={{ width: '100%', padding: '0.5rem' }} />
+        <input type="number" step="any" value={trade.stop_loss} onChange={e => setTrade({ ...trade, stop_loss: e.target.value })} disabled={trade.status === 'closed'} style={{ width: '100%', padding: '0.5rem' }} />
         </div>
         <div style={{ flex: 1 }}>
         <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: 'var(--text-muted)' }}>Take Profit</label>
-        <input type="number" step="any" value={trade.take_profit} onChange={e => setTrade({ ...trade, take_profit: e.target.value })} style={{ width: '100%', padding: '0.5rem' }} />
+        <input type="number" step="any" value={trade.take_profit} onChange={e => setTrade({ ...trade, take_profit: e.target.value })} disabled={trade.status === 'closed'} style={{ width: '100%', padding: '0.5rem' }} />
         </div>
         </div>
 

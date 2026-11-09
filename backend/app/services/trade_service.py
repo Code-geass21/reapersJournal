@@ -110,7 +110,8 @@ def _recalculate_trade_metrics(db: Session, trade: Trade, instrument: Instrument
 
     except ValueError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        # FIX FOR BUG 88 & 72: Ensure we don't 500 on note edits for old pre-015 trades missing an exchange rate
+        raise HTTPException(status_code=400, detail=f"Missing exchange rate data for recalculation: {str(e)}")
 
     if trade.status == 'closed':
         # FIX FOR BUG 53: Deduct fees exactly once when fully closed, allowing for post-trade fee edits.
@@ -216,9 +217,18 @@ def update_trade(db: Session, user_id: int, trade_id: int, trade_in: TradeUpdate
     if trade.status == 'closed':
         forbidden_edits = ['entry_price', 'size', 'direction', 'instrument_id', 'strategy_id', 'status', 'exit_price']
         for key in forbidden_edits:
-            if key in update_data and update_data[key] != getattr(trade, key):
-                db.rollback()
-                raise HTTPException(status_code=400, detail="Cannot modify core financial details of a closed trade.")
+            if key in update_data:
+                new_val = update_data[key]
+                old_val = getattr(trade, key)
+
+                # FIX FOR BUG 86: Safely normalize floats and Decimals for comparison
+                if new_val is not None and old_val is not None and isinstance(old_val, Decimal):
+                    if Decimal(str(new_val)).quantize(Decimal('0.00001')) != Decimal(str(old_val)).quantize(Decimal('0.00001')):
+                        db.rollback()
+                        raise HTTPException(status_code=400, detail=f"Cannot modify {key} on a closed trade.")
+                elif new_val != old_val:
+                    db.rollback()
+                    raise HTTPException(status_code=400, detail=f"Cannot modify {key} on a closed trade.")
 
     if trade.status == 'open' and ('entry_price' in update_data or 'size' in update_data):
         entry_exec = db.query(TradeExecution).filter(
@@ -246,14 +256,31 @@ def update_trade(db: Session, user_id: int, trade_id: int, trade_in: TradeUpdate
         instrument = db.query(Instrument).filter(Instrument.id == trade.instrument_id).first()
         inst_dict = {"contract_size": instrument.contract_size, "pip_size": instrument.pip_size, "quote_ccy": instrument.quote_ccy}
 
-        pnl_data = pnl_service.calculate_pnl(
-            db=db,
-            direction=trade.direction,
-            entry_price=float(trade.entry_price),
-            exit_price=float(update_data['exit_price']),
-            size=float(current_open_size),
-            instrument=inst_dict
-        )
+        try:
+            pnl_data = pnl_service.calculate_pnl(
+                db=db,
+                direction=trade.direction,
+                entry_price=float(trade.entry_price),
+                exit_price=float(update_data['exit_price']),
+                size=float(current_open_size),
+                instrument=inst_dict
+            )
+        except ValueError as e:
+            # FIX FOR BUG 88 & 72: Fallback to the last known rate for this trade to prevent 500s
+            last_exec = db.query(TradeExecution).filter(
+                TradeExecution.trade_id == trade.id,
+                TradeExecution.exchange_rate.isnot(None)
+            ).order_by(TradeExecution.executed_at.desc()).first()
+
+            if last_exec:
+                pnl_data = pnl_service.calculate_pnl(
+                    db=db, direction=trade.direction, entry_price=float(trade.entry_price),
+                    exit_price=float(update_data['exit_price']), size=float(current_open_size),
+                    instrument=inst_dict, force_fx_rate=Decimal(str(last_exec.exchange_rate))
+                )
+            else:
+                db.rollback()
+                raise HTTPException(status_code=400, detail=f"Cannot close trade: {str(e)}. No historical rate available.")
 
         current_fees = Decimal(str(trade.fees or '0'))
         already_booked_pnl = float(trade.pnl_realized or 0)
@@ -361,14 +388,31 @@ def add_execution(db: Session, user_id: int, trade_id: int, exec_in: TradeExecut
     instrument = db.query(Instrument).filter(Instrument.id == trade.instrument_id).first()
     inst_dict = {"contract_size": instrument.contract_size, "pip_size": instrument.pip_size, "quote_ccy": instrument.quote_ccy}
 
-    pnl_data = pnl_service.calculate_pnl(
-        db=db,
-        direction=trade.direction,
-        entry_price=float(trade.entry_price),
-        exit_price=exec_in.price,
-        size=float(exec_size),
-        instrument=inst_dict
-    )
+    try:
+        pnl_data = pnl_service.calculate_pnl(
+            db=db,
+            direction=trade.direction,
+            entry_price=float(trade.entry_price),
+            exit_price=exec_in.price,
+            size=float(exec_size),
+            instrument=inst_dict
+        )
+    except ValueError as e:
+        # FIX FOR BUG 88 & 72: Fallback to the last known rate for this trade to prevent 500s
+        last_exec = db.query(TradeExecution).filter(
+            TradeExecution.trade_id == trade.id,
+            TradeExecution.exchange_rate.isnot(None)
+        ).order_by(TradeExecution.executed_at.desc()).first()
+
+        if last_exec:
+            pnl_data = pnl_service.calculate_pnl(
+                db=db, direction=trade.direction, entry_price=float(trade.entry_price),
+                exit_price=exec_in.price, size=float(exec_size),
+                instrument=inst_dict, force_fx_rate=Decimal(str(last_exec.exchange_rate))
+            )
+        else:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=f"Cannot add execution: {str(e)}. No historical rate available.")
 
     # Accumulate the realized P&L incrementally
     current_pnl = float(trade.pnl_realized or 0.0)

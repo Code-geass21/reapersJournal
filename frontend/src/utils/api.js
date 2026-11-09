@@ -16,27 +16,34 @@ api.interceptors.request.use((config) => {
 let maintenanceAlertShown = false;
 
 api.interceptors.response.use(
-    (response) => response,
-                              (error) => {
-                                  if (error.response) {
-                                      // Token expired or invalid (skip for the login endpoint)
-                                      if (error.response.status === 401) {
-                                          const url = error.config.url || '';
-                                          if (!url.includes('/auth/login')) {
-                                              localStorage.removeItem('token');
-                                              window.location.href = '/';
-                                          }
-                                      }
-                                      // System under maintenance
-                                      else if (error.response.status === 503) {
-                                          if (!maintenanceAlertShown) {
-                                              maintenanceAlertShown = true;
-                                              window.dispatchEvent(new Event('maintenance-mode'));
-                                          }
-                                      }
-                                  }
-                                  return Promise.reject(error);
-                              }
+    (response) => {
+        // FIX FOR BUG 76: Clear maintenance state on first successful request
+        if (maintenanceAlertShown) {
+            maintenanceAlertShown = false;
+            window.dispatchEvent(new Event('maintenance-recovered'));
+        }
+        return response;
+    },
+    (error) => {
+        if (error.response) {
+            // Token expired or invalid (skip for the login endpoint)
+            if (error.response.status === 401) {
+                const url = error.config.url || '';
+                if (!url.includes('/auth/login')) {
+                    localStorage.removeItem('token');
+                    window.location.href = '/';
+                }
+            }
+            // System under maintenance
+            else if (error.response.status === 503) {
+                if (!maintenanceAlertShown) {
+                    maintenanceAlertShown = true;
+                    window.dispatchEvent(new Event('maintenance-mode'));
+                }
+            }
+        }
+        return Promise.reject(error);
+    }
 );
 
 export default api;
