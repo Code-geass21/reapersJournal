@@ -1,3 +1,4 @@
+import os
 import pytest
 import uuid
 from fastapi.testclient import TestClient
@@ -11,12 +12,18 @@ from app.models.instrument import Market, Instrument
 from app.models.strategy import Strategy
 from app.utils.security import get_password_hash, create_access_token
 
-# FIX FOR BUG 90: Isolate tests using a local SQLite database
-SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///./test_reapers.db"
-engine = create_engine(SQLALCHEMY_TEST_DATABASE_URL, connect_args={"check_same_thread": False})
+# FIX FOR BUGS 95 & 90: Switch from SQLite to an isolated Postgres test database.
+# SQLite does not support Postgres-specific types like ARRAY and JSONB.
+TEST_DATABASE_URL = os.getenv(
+    "TEST_DATABASE_URL",
+    "postgresql://postgres:your_secure_password@localhost:5432/reapers_test"
+)
+# Removed the check_same_thread arg as it is only valid for SQLite
+engine = create_engine(TEST_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Create all tables in the test database on startup
+# Wipe and recreate all tables in the test database on startup for a clean slate
+Base.metadata.drop_all(bind=engine)
 Base.metadata.create_all(bind=engine)
 
 # Override FastAPI's database dependency for the TestClient

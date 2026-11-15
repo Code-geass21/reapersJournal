@@ -1,5 +1,4 @@
 import time  # Required for cache expiration checks
-from contextvars import ContextVar
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
@@ -16,13 +15,11 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 # FIX FOR BUG 66: Simple in-memory cache to save 1 query per API request
 _maintenance_cache = {"is_active": False, "expires_at": 0}
 
-# FIX FOR BUG 31: Context variable to hold user_id across multiple DB transactions
-current_user_id_ctx: ContextVar[str] = ContextVar("current_user_id", default="")
-
+# FIX FOR BUG 96 & 31: Use session.info instead of a ContextVar for session isolation
 @event.listens_for(Session, "after_begin")
 def receive_after_begin(session, transaction, connection):
     """Automatically injects the user_id into Postgres for the audit triggers on EVERY new transaction."""
-    uid = current_user_id_ctx.get()
+    uid = session.info.get('current_user_id')
     if uid:
         try:
             connection.execute(text(f"SET LOCAL app.current_user_id = '{uid}'"))
@@ -65,8 +62,8 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
             detail="System is currently in maintenance mode. Please try again later."
         )
 
-    # Set the ContextVar for the event listener instead of executing it directly
-    current_user_id_ctx.set(str(user.id))
+    # FIX FOR BUG 96 & 31: Inject the user ID directly into the current DB Session object
+    db.info['current_user_id'] = str(user.id)
 
     return user
 
