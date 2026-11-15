@@ -8,15 +8,13 @@ def create_alert(db: Session, user_id: int, kind: str, message: str, trade_id: i
     try:
         if trade_id:
             # FIX FOR BUGS 87 & 94: Dedupe based on the static trigger level, not the live price.
-            # Example message: "Stop Loss (1.105) hit for EURUSD at 1.104"
-            # We split at " at " to extract just "Stop Loss (1.105) hit for EURUSD"
             base_msg = message.split(" at ")[0]
 
-            # Drop the status filter. This ensures that even if an alert is 'dismissed',
-            # we don't recreate it unless the user actually changed their SL/TP level.
+            # Ensures we don't recreate dismissed/active alerts unless the SL/TP level changes.
             existing = db.query(Alert).filter(
                 Alert.trade_id == trade_id,
                 Alert.kind == kind,
+                Alert.superseded.is_(False),
                 Alert.message.startswith(base_msg)
             ).first()
 
@@ -39,5 +37,12 @@ def create_alert(db: Session, user_id: int, kind: str, message: str, trade_id: i
 
     except Exception as e:
         logger.error(f"Failed to create alert: {e}")
-        # db.begin_nested() automatically rolls back its own scope on exception
         return False
+
+def rearm(db: Session, trade_id: int, kind: str) -> int:
+    """Price is back inside the level: retire old alerts of this kind so the next breach alerts again."""
+    return db.query(Alert).filter(
+        Alert.trade_id == trade_id,
+        Alert.kind == kind,
+        Alert.superseded.is_(False)
+    ).update({"superseded": True}, synchronize_session=False)

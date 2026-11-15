@@ -8,6 +8,7 @@ from app.models.instrument import Instrument
 from app.models.strategy import Strategy, StrategyRule
 from app.schemas.trade import TradeCreate, TradeUpdate, TradeExecutionCreate
 from app.services import pnl_service, log_service, alert_service
+from app.utils.trading_math import calculate_quote_pnl
 
 def _evaluate_rule_violations(db: Session, strategy_id: int, trade_in: TradeCreate) -> dict:
     rules = db.query(StrategyRule).filter(StrategyRule.strategy_id == strategy_id).all()
@@ -75,52 +76,114 @@ def _calculate_weighted_r_multiple(db: Session, trade: Trade) -> float:
         stop_loss=float(trade.initial_stop_loss)
     )
 
-def _recalculate_trade_metrics(db: Session, trade: Trade, instrument: Instrument):
-    """
-    FIX FOR BUG 54 & 72: Single source of truth for P&L math.
-    Rebuilds booked P&L and R-multiple entirely from executions while locking historical FX rates.
-    """
-    exits = db.query(TradeExecution).filter(
+def _quote_pnl(trade: Trade, ex: TradeExecution, contract_size) -> Decimal:
+    """P&L of one exit in the instrument's quote currency (exact Decimal)."""
+    return Decimal(str(calculate_quote_pnl(
+        trade.direction, float(trade.entry_price), float(ex.price), float(ex.size), contract_size
+    )))
+
+
+def _exit_executions(db: Session, trade: Trade):
+    return db.query(TradeExecution).filter(
         TradeExecution.trade_id == trade.id,
         TradeExecution.execution_type == 'exit'
-    ).all()
+    ).order_by(TradeExecution.executed_at.asc(), TradeExecution.id.asc()).all()
 
+
+def _freeze_legacy_rates(db: Session, trade: Trade, instrument: Instrument):
+    """
+    FIX FOR BUG 72: Exits saved before migration 015 have no stored FX rate. Instead of re-pricing
+    them at today's rate, derive the rate that reproduces the P&L already recorded on the trade and
+    store it. Call this BEFORE the trade is modified, so trade.pnl_realized / fees are still the old values.
+    """
+    exits = _exit_executions(db, trade)
+    legacy = [e for e in exits if not e.exchange_rate]
+    if not legacy:
+        return
+
+    contract_size = instrument.contract_size
+    known_usd = sum((_quote_pnl(trade, e, contract_size) * Decimal(str(e.exchange_rate))
+                     for e in exits if e.exchange_rate), Decimal('0'))
+    legacy_quote = sum((_quote_pnl(trade, e, contract_size) for e in legacy), Decimal('0'))
+
+    rate, source = None, None
+    if (instrument.quote_ccy or 'USD').strip().upper() == 'USD':
+        rate, source = Decimal('1'), 'implied'
+    elif trade.pnl_realized is not None and legacy_quote != 0:
+        fees = Decimal(str(trade.fees or '0')) if trade.status == 'closed' else Decimal('0')
+        candidate = (Decimal(str(trade.pnl_realized)) + fees - known_usd) / legacy_quote
+        if candidate > 0:
+            rate, source = candidate, 'implied'
+
+    if rate is None:
+        try:
+            rate = pnl_service.get_usd_conversion_rate(db, instrument.quote_ccy, allow_stale=True)
+            source = 'stale_backfill'
+        except ValueError as e:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=f"No exchange rate available to recalculate this older trade: {e}")
+
+    rate = rate.quantize(Decimal('0.0000000001'))
+    for e in legacy:
+        e.exchange_rate = rate
+        e.rate_source = source
+    db.flush()
+
+
+def _pnl_for_exit(db: Session, trade: Trade, instrument: Instrument, exit_price, size):
+    """
+    FIX FOR BUGS 88 & 102: one place for the FX fallback chain. Returns (pnl_data, rate_source).
+      1. fresh live rate            -> 'live'
+      2. last rate stored on trade  -> 'trade_last'
+      3. any cached rate, stale ok  -> 'stale' (written to app_logs as WARNING)
+    """
     inst_dict = {"contract_size": instrument.contract_size, "pip_size": instrument.pip_size, "quote_ccy": instrument.quote_ccy}
-
-    total_pnl = Decimal('0')
+    kw = dict(db=db, direction=trade.direction, entry_price=float(trade.entry_price),
+              exit_price=float(exit_price), size=float(size), instrument=inst_dict)
     try:
-        for ex in exits:
-            # FIX FOR BUG 72: Re-use the historical exchange rate locked on the execution
-            force_rate = Decimal(str(ex.exchange_rate)) if ex.exchange_rate else None
+        return pnl_service.calculate_pnl(**kw), 'live'
+    except ValueError as live_error:
+        last_exec = db.query(TradeExecution).filter(
+            TradeExecution.trade_id == trade.id,
+            TradeExecution.exchange_rate.isnot(None)
+        ).order_by(TradeExecution.executed_at.desc(), TradeExecution.id.desc()).first()
+        if last_exec:
+            return pnl_service.calculate_pnl(**kw, force_fx_rate=Decimal(str(last_exec.exchange_rate))), 'trade_last'
+        try:
+            data = pnl_service.calculate_pnl(**kw, allow_stale=True)
+        except ValueError:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=f"{live_error} No live, historical or cached rate is available.")
+        log_service.write(
+            db, action="fx.stale_rate_used", level="WARNING", user_id=trade.user_id,
+            entity_type="trade", entity_id=trade.id,
+            after={"symbol": instrument.symbol, "fx_rate": data["fx_rate"], "reason": str(live_error)}
+        )
+        return data, 'stale'
 
-            pnl_data = pnl_service.calculate_pnl(
-                db=db,
-                direction=trade.direction,
-                entry_price=float(trade.entry_price),
-                exit_price=float(ex.price),
-                size=float(ex.size),
-                instrument=inst_dict,
-                force_fx_rate=force_rate
-            )
-            total_pnl += Decimal(str(pnl_data['pnl_realized']))
 
-            # Retroactively save the rate if this was a pre-015 trade
-            if not ex.exchange_rate:
-                ex.exchange_rate = pnl_data.get('fx_rate')
+def _recalculate_trade_metrics(db: Session, trade: Trade, instrument: Instrument):
+    """
+    FIX FOR BUGS 54, 72 & 37: Single source of truth for P&L math, in exact Decimal.
+    Rebuilds booked P&L and R-multiple from executions using the FX rate locked on each execution.
+    No live price lookup happens here, so editing notes can never re-price history.
+    """
+    exits = _exit_executions(db, trade)
+    if any(not e.exchange_rate for e in exits):
+        _freeze_legacy_rates(db, trade, instrument)
 
-    except ValueError as e:
-        db.rollback()
-        # FIX FOR BUG 88 & 72: Ensure we don't 500 on note edits for old pre-015 trades missing an exchange rate
-        raise HTTPException(status_code=400, detail=f"Missing exchange rate data for recalculation: {str(e)}")
+    contract_size = instrument.contract_size
+    total_pnl = sum((_quote_pnl(trade, e, contract_size) * Decimal(str(e.exchange_rate)) for e in exits), Decimal('0'))
 
+    cent = Decimal('0.01')
     if trade.status == 'closed':
         # FIX FOR BUG 53: Deduct fees exactly once when fully closed, allowing for post-trade fee edits.
         fees = Decimal(str(trade.fees or '0'))
-        trade.pnl_realized = float(total_pnl - fees)
+        trade.pnl_realized = (total_pnl - fees).quantize(cent)
         if trade.initial_stop_loss:
             trade.r_multiple = _calculate_weighted_r_multiple(db, trade)
     else:
-        trade.pnl_realized = float(total_pnl)
+        trade.pnl_realized = total_pnl.quantize(cent)
 
 
 def create_trade(db: Session, user_id: int, trade_in: TradeCreate) -> Trade:
@@ -235,6 +298,9 @@ def update_trade(db: Session, user_id: int, trade_id: int, trade_in: TradeUpdate
                     db.rollback()
                     raise HTTPException(status_code=400, detail=f"Cannot modify {key} on a closed trade.")
 
+    # FIX FOR BUG 72: lock FX rates of older exits BEFORE anything on the trade is changed
+    _freeze_legacy_rates(db, trade, db.query(Instrument).filter(Instrument.id == trade.instrument_id).first())
+
     if trade.status == 'open' and ('entry_price' in update_data or 'size' in update_data):
         entry_exec = db.query(TradeExecution).filter(
             TradeExecution.trade_id == trade.id,
@@ -259,46 +325,8 @@ def update_trade(db: Session, user_id: int, trade_id: int, trade_in: TradeUpdate
         update_data['closed_at'] = closed_at
 
         instrument = db.query(Instrument).filter(Instrument.id == trade.instrument_id).first()
-        inst_dict = {"contract_size": instrument.contract_size, "pip_size": instrument.pip_size, "quote_ccy": instrument.quote_ccy}
 
-        try:
-            pnl_data = pnl_service.calculate_pnl(
-                db=db,
-                direction=trade.direction,
-                entry_price=float(trade.entry_price),
-                exit_price=float(update_data['exit_price']),
-                size=float(current_open_size),
-                instrument=inst_dict
-            )
-        except ValueError as e:
-            # FIX FOR BUG 88 & 72: Fallback to the last known rate, OR use a stale rate from cache.
-            last_exec = db.query(TradeExecution).filter(
-                TradeExecution.trade_id == trade.id,
-                TradeExecution.exchange_rate.isnot(None)
-            ).order_by(TradeExecution.executed_at.desc()).first()
-
-            if last_exec:
-                pnl_data = pnl_service.calculate_pnl(
-                    db=db, direction=trade.direction, entry_price=float(trade.entry_price),
-                    exit_price=float(update_data['exit_price']), size=float(current_open_size),
-                    instrument=inst_dict, force_fx_rate=Decimal(str(last_exec.exchange_rate))
-                )
-            else:
-                try:
-                    # Fallback to whatever rate is in the DB, even if it's days old
-                    pnl_data = pnl_service.calculate_pnl(
-                        db=db, direction=trade.direction, entry_price=float(trade.entry_price),
-                        exit_price=float(update_data['exit_price']), size=float(current_open_size),
-                        instrument=inst_dict, allow_stale=True
-                    )
-                except ValueError:
-                    db.rollback()
-                    raise HTTPException(status_code=400, detail=f"Cannot close trade: {str(e)}. No live, historical, or stale rate available.")
-
-        current_fees = Decimal(str(trade.fees or '0'))
-        already_booked_pnl = float(trade.pnl_realized or 0)
-        final_chunk_pnl = pnl_data['pnl_realized']
-        update_data['pnl_realized'] = float(Decimal(str(already_booked_pnl)) + Decimal(str(final_chunk_pnl)) - current_fees)
+        pnl_data, rate_source = _pnl_for_exit(db, trade, instrument, update_data['exit_price'], current_open_size)
 
         exit_execution = TradeExecution(
             trade_id=trade.id,
@@ -306,7 +334,8 @@ def update_trade(db: Session, user_id: int, trade_id: int, trade_in: TradeUpdate
             price=update_data['exit_price'],
             size=float(current_open_size),
             executed_at=closed_at,
-            exchange_rate=pnl_data.get('fx_rate')  # FIX FOR BUG 72
+            exchange_rate=pnl_data.get('fx_rate'),
+            rate_source=rate_source
         )
         db.add(exit_execution)
         db.flush()
@@ -399,45 +428,8 @@ def add_execution(db: Session, user_id: int, trade_id: int, exec_in: TradeExecut
         raise HTTPException(status_code=400, detail="Execution time cannot be in the future.")
 
     instrument = db.query(Instrument).filter(Instrument.id == trade.instrument_id).first()
-    inst_dict = {"contract_size": instrument.contract_size, "pip_size": instrument.pip_size, "quote_ccy": instrument.quote_ccy}
-
-    try:
-        pnl_data = pnl_service.calculate_pnl(
-            db=db,
-            direction=trade.direction,
-            entry_price=float(trade.entry_price),
-            exit_price=exec_in.price,
-            size=float(exec_size),
-            instrument=inst_dict
-        )
-    except ValueError as e:
-        # FIX FOR BUG 88 & 72: Fallback to the last known rate, OR use a stale rate from cache.
-        last_exec = db.query(TradeExecution).filter(
-            TradeExecution.trade_id == trade.id,
-            TradeExecution.exchange_rate.isnot(None)
-        ).order_by(TradeExecution.executed_at.desc()).first()
-
-        if last_exec:
-            pnl_data = pnl_service.calculate_pnl(
-                db=db, direction=trade.direction, entry_price=float(trade.entry_price),
-                exit_price=exec_in.price, size=float(exec_size),
-                instrument=inst_dict, force_fx_rate=Decimal(str(last_exec.exchange_rate))
-            )
-        else:
-            try:
-                # Fallback to whatever rate is in the DB, even if it's days old
-                pnl_data = pnl_service.calculate_pnl(
-                    db=db, direction=trade.direction, entry_price=float(trade.entry_price),
-                    exit_price=exec_in.price, size=float(exec_size),
-                    instrument=inst_dict, allow_stale=True
-                )
-            except ValueError:
-                db.rollback()
-                raise HTTPException(status_code=400, detail=f"Cannot add execution: {str(e)}. No live, historical, or stale rate available.")
-
-    # Accumulate the realized P&L incrementally
-    current_pnl = float(trade.pnl_realized or 0.0)
-    trade.pnl_realized = current_pnl + pnl_data['pnl_realized']
+    _freeze_legacy_rates(db, trade, instrument)
+    pnl_data, rate_source = _pnl_for_exit(db, trade, instrument, exec_in.price, exec_size)
 
     new_exec = TradeExecution(
         trade_id=trade.id,
@@ -446,7 +438,8 @@ def add_execution(db: Session, user_id: int, trade_id: int, exec_in: TradeExecut
         size=float(exec_size),
         executed_at=execution_time,
         note=exec_in.note,
-        exchange_rate=pnl_data.get('fx_rate')  # FIX FOR BUG 72
+        exchange_rate=pnl_data.get('fx_rate'),
+        rate_source=rate_source
     )
     db.add(new_exec)
     db.flush()

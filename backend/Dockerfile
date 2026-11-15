@@ -3,7 +3,7 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Copy requirements from the backend folder
-COPY backend/requirements.txt .
+COPY backend/requirements.txt backend/requirements-dev.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the backend python code

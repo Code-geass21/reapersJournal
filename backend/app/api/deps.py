@@ -21,10 +21,8 @@ def receive_after_begin(session, transaction, connection):
     """Automatically injects the user_id into Postgres for the audit triggers on EVERY new transaction."""
     uid = session.info.get('current_user_id')
     if uid:
-        try:
-            connection.execute(text(f"SET LOCAL app.current_user_id = '{uid}'"))
-        except Exception:
-            pass
+        # set_config(..., true) == SET LOCAL, but accepts a bind parameter
+        connection.execute(text("SELECT set_config('app.current_user_id', :uid, true)"), {"uid": uid})
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
@@ -64,6 +62,9 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
     # FIX FOR BUG 96 & 31: Inject the user ID directly into the current DB Session object
     db.info['current_user_id'] = str(user.id)
+    # The transaction was already started by the user lookup above, so after_begin has
+    # already fired without the id. Apply it to THIS transaction directly as well.
+    db.execute(text("SELECT set_config('app.current_user_id', :uid, true)"), {"uid": str(user.id)})
 
     return user
 

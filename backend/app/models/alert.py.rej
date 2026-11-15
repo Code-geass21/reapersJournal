@@ -1,0 +1,15 @@
+diff a/backend/app/models/alert.py b/backend/app/models/alert.py	(rejected hunks)
+@@ -1,5 +1,5 @@
+ 
+-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func
++from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, func, false
+ from app.database import Base
+ 
+ class Alert(Base):
+@@ -11,5 +11,6 @@
+     kind = Column(String(50), nullable=False)
+     message = Column(Text, nullable=False)
+     status = Column(String(20), default="new")
++    superseded = Column(Boolean, nullable=False, default=False, server_default=false())
+     created_at = Column(DateTime(timezone=True), server_default=func.now())
+ 

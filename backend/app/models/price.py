@@ -6,7 +6,7 @@ class PriceCache(Base):
     __tablename__ = "price_cache"
 
     provider_symbol = Column(String(50), primary_key=True, index=True)
-    price = Column(Numeric(20, 10))
+    price = Column(Numeric(20, 10), nullable=False)
     bid = Column(Numeric(20, 10))
     ask = Column(Numeric(20, 10))
     fetched_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

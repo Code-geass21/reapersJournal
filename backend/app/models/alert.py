@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, func, false
 from app.database import Base
 
 class Alert(Base):
@@ -10,4 +10,5 @@ class Alert(Base):
     kind = Column(String(50), nullable=False)
     message = Column(Text, nullable=False)
     status = Column(String(20), default="new")
+    superseded = Column(Boolean, nullable=False, default=False, server_default=false())
     created_at = Column(DateTime(timezone=True), server_default=func.now())

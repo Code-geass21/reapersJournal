@@ -3,7 +3,7 @@ import logging
 from sqlalchemy import text
 from app.database import engine
 
-MIGRATIONS_DIR = "/app/db/migrations"
+MIGRATIONS_DIR = os.getenv("MIGRATIONS_DIR", "/app/db/migrations")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 

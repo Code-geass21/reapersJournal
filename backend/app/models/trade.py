@@ -54,7 +54,8 @@ class TradeExecution(Base):
     size = Column(Numeric(15, 2), nullable=False)
     executed_at = Column(DateTime(timezone=True), server_default=func.now())
     note = Column(Text)
-    exchange_rate = Column(Numeric(20, 10))  # <-- ADDED FOR BUG 72
+    exchange_rate = Column(Numeric(20, 10))  # quote->USD rate locked at execution time
+    rate_source = Column(String(20))  # live | trade_last | stale | implied | stale_backfill
 
     trade = relationship("Trade", back_populates="executions")
 

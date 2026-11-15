@@ -1,0 +1,14 @@
+diff a/backend/app/services/alert_service.py b/backend/app/services/alert_service.py	(rejected hunks)
+@@ -43,3 +44,12 @@
+         # db.begin_nested() automatically rolls back its own scope on exception
+         return False
+ 
++
++
++def rearm(db: Session, trade_id: int, kind: str) -> int:
++    """Price is back inside the level: retire old alerts of this kind so the next breach alerts again."""
++    return db.query(Alert).filter(
++        Alert.trade_id == trade_id,
++        Alert.kind == kind,
++        Alert.superseded.is_(False)
++    ).update({"superseded": True}, synchronize_session=False)

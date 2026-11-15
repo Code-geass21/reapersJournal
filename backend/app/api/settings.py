@@ -34,8 +34,7 @@ def get_global_settings(
 ALLOWED_GLOBAL_SETTINGS = {
     "maintenance_mode": bool,
     "allow_registration": bool,
-    "price_provider": ["twelvedata"],  # FIX FOR BUG 84: removed alphavantage
-    "price_refresh_secs": int
+    "price_provider": ["twelvedata"],
 }
 
 

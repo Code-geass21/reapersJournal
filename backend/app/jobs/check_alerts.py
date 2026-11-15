@@ -65,20 +65,34 @@ def run():
             sl = float(trade.stop_loss) if trade.stop_loss else None
             tp = float(trade.take_profit) if trade.take_profit else None
 
-            if trade.direction == 'long':
-                if sl and current <= sl:
-                    if alert_service.create_alert(db, trade.user_id, 'sl_hit', f"Stop Loss ({sl}) hit for {instrument.symbol} at {current}", trade.id):
-                        alerts_created += 1
-                elif tp and current >= tp:
-                    if alert_service.create_alert(db, trade.user_id, 'tp_hit', f"Take Profit ({tp}) hit for {instrument.symbol} at {current}", trade.id):
-                        alerts_created += 1
-            elif trade.direction == 'short':
-                if sl and current >= sl:
-                    if alert_service.create_alert(db, trade.user_id, 'sl_hit', f"Stop Loss ({sl}) hit for {instrument.symbol} at {current}", trade.id):
-                        alerts_created += 1
-                elif tp and current <= tp:
-                    if alert_service.create_alert(db, trade.user_id, 'tp_hit', f"Take Profit ({tp}) hit for {instrument.symbol} at {current}", trade.id):
-                        alerts_created += 1
+            # Price must come back this far inside the level before the alert re-arms (avoids flapping)
+            buffer = float(instrument.pip_size or 0)
+
+            def beyond(level, kind):
+                # True when the price has touched/passed the SL or TP level
+                if trade.direction == 'long':
+                    return current <= level if kind == 'sl_hit' else current >= level
+                return current >= level if kind == 'sl_hit' else current <= level
+
+            def back_inside(level, kind):
+                if trade.direction == 'long':
+                    return current > level + buffer if kind == 'sl_hit' else current < level - buffer
+                return current < level - buffer if kind == 'sl_hit' else current > level + buffer
+
+            sl_hit = bool(sl) and beyond(sl, 'sl_hit')
+            tp_hit = bool(tp) and not sl_hit and beyond(tp, 'tp_hit')
+
+            if sl_hit:
+                if alert_service.create_alert(db, trade.user_id, 'sl_hit', f"Stop Loss ({sl}) hit for {instrument.symbol} at {current}", trade.id):
+                    alerts_created += 1
+            elif sl and back_inside(sl, 'sl_hit'):
+                alert_service.rearm(db, trade.id, 'sl_hit')
+
+            if tp_hit:
+                if alert_service.create_alert(db, trade.user_id, 'tp_hit', f"Take Profit ({tp}) hit for {instrument.symbol} at {current}", trade.id):
+                    alerts_created += 1
+            elif tp and back_inside(tp, 'tp_hit'):
+                alert_service.rearm(db, trade.id, 'tp_hit')
 
         if alerts_created > 0:
             logger.info(f"Generated {alerts_created} new SL/TP alerts.")
