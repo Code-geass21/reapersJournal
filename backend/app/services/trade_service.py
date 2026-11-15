@@ -215,7 +215,12 @@ def update_trade(db: Session, user_id: int, trade_id: int, trade_in: TradeUpdate
             raise HTTPException(status_code=400, detail=f"Cannot reduce total size below already exited amount ({total_exited} lots).")
 
     if trade.status == 'closed':
-        forbidden_edits = ['entry_price', 'size', 'direction', 'instrument_id', 'strategy_id', 'status', 'exit_price']
+        # FIX FOR BUG 97: Added stop_loss and take_profit to the forbidden list to lock in historical risk data
+        forbidden_edits = [
+            'entry_price', 'size', 'direction', 'instrument_id',
+            'strategy_id', 'status', 'exit_price', 'stop_loss', 'take_profit'
+        ]
+
         for key in forbidden_edits:
             if key in update_data:
                 new_val = update_data[key]
@@ -266,7 +271,7 @@ def update_trade(db: Session, user_id: int, trade_id: int, trade_in: TradeUpdate
                 instrument=inst_dict
             )
         except ValueError as e:
-            # FIX FOR BUG 88 & 72: Fallback to the last known rate for this trade to prevent 500s
+            # FIX FOR BUG 88 & 72: Fallback to the last known rate, OR use a stale rate from cache.
             last_exec = db.query(TradeExecution).filter(
                 TradeExecution.trade_id == trade.id,
                 TradeExecution.exchange_rate.isnot(None)
@@ -279,8 +284,16 @@ def update_trade(db: Session, user_id: int, trade_id: int, trade_in: TradeUpdate
                     instrument=inst_dict, force_fx_rate=Decimal(str(last_exec.exchange_rate))
                 )
             else:
-                db.rollback()
-                raise HTTPException(status_code=400, detail=f"Cannot close trade: {str(e)}. No historical rate available.")
+                try:
+                    # Fallback to whatever rate is in the DB, even if it's days old
+                    pnl_data = pnl_service.calculate_pnl(
+                        db=db, direction=trade.direction, entry_price=float(trade.entry_price),
+                        exit_price=float(update_data['exit_price']), size=float(current_open_size),
+                        instrument=inst_dict, allow_stale=True
+                    )
+                except ValueError:
+                    db.rollback()
+                    raise HTTPException(status_code=400, detail=f"Cannot close trade: {str(e)}. No live, historical, or stale rate available.")
 
         current_fees = Decimal(str(trade.fees or '0'))
         already_booked_pnl = float(trade.pnl_realized or 0)
@@ -398,7 +411,7 @@ def add_execution(db: Session, user_id: int, trade_id: int, exec_in: TradeExecut
             instrument=inst_dict
         )
     except ValueError as e:
-        # FIX FOR BUG 88 & 72: Fallback to the last known rate for this trade to prevent 500s
+        # FIX FOR BUG 88 & 72: Fallback to the last known rate, OR use a stale rate from cache.
         last_exec = db.query(TradeExecution).filter(
             TradeExecution.trade_id == trade.id,
             TradeExecution.exchange_rate.isnot(None)
@@ -411,8 +424,16 @@ def add_execution(db: Session, user_id: int, trade_id: int, exec_in: TradeExecut
                 instrument=inst_dict, force_fx_rate=Decimal(str(last_exec.exchange_rate))
             )
         else:
-            db.rollback()
-            raise HTTPException(status_code=400, detail=f"Cannot add execution: {str(e)}. No historical rate available.")
+            try:
+                # Fallback to whatever rate is in the DB, even if it's days old
+                pnl_data = pnl_service.calculate_pnl(
+                    db=db, direction=trade.direction, entry_price=float(trade.entry_price),
+                    exit_price=exec_in.price, size=float(exec_size),
+                    instrument=inst_dict, allow_stale=True
+                )
+            except ValueError:
+                db.rollback()
+                raise HTTPException(status_code=400, detail=f"Cannot add execution: {str(e)}. No live, historical, or stale rate available.")
 
     # Accumulate the realized P&L incrementally
     current_pnl = float(trade.pnl_realized or 0.0)

@@ -52,9 +52,12 @@ class TradeBase(BaseModel):
     status: Literal['open', 'closed', 'cancelled'] = 'open'
     entry_price: float = Field(..., gt=0)
     size: float = Field(..., gt=0)
-    stop_loss: Optional[float] = None
-    take_profit: Optional[float] = None
-    fees: Optional[float] = 0.0
+
+    # FIX FOR BUG 97: Strict positive validation for risks and non-negative fees
+    stop_loss: Optional[float] = Field(None, gt=0)
+    take_profit: Optional[float] = Field(None, gt=0)
+    fees: Optional[float] = Field(0.0, ge=0)
+
     notes: Optional[str] = None
     tags: Optional[List[str]] = None
     emotion: Optional[str] = None
@@ -68,13 +71,16 @@ class TradeUpdate(BaseModel):
     instrument_id: Optional[int] = None
     direction: Optional[Literal['long', 'short']] = None
     status: Optional[Literal['open', 'closed', 'cancelled']] = None
-    entry_price: Optional[float] = None
-    size: Optional[float] = None
-    stop_loss: Optional[float] = None
-    take_profit: Optional[float] = None
+
+    # FIX FOR BUG 97: Apply boundaries to Update model to prevent 0 or negative values on edit
+    entry_price: Optional[float] = Field(None, gt=0)
+    size: Optional[float] = Field(None, gt=0)
+    stop_loss: Optional[float] = Field(None, gt=0)
+    take_profit: Optional[float] = Field(None, gt=0)
     closed_at: Optional[datetime] = None
-    exit_price: Optional[float] = None
-    fees: Optional[float] = None
+    exit_price: Optional[float] = Field(None, gt=0)
+    fees: Optional[float] = Field(None, ge=0)
+
     notes: Optional[str] = None
     tags: Optional[List[str]] = None
     emotion: Optional[str] = None

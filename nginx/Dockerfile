@@ -4,7 +4,9 @@ WORKDIR /app
 
 # Copy package files first for layer caching
 COPY frontend/package*.json ./
-RUN npm install
+
+# FIX FOR BUG 99: Use npm ci for deterministic builds (requires package-lock.json)
+RUN npm ci
 
 # Copy the rest of the frontend code and build
 COPY frontend/ ./

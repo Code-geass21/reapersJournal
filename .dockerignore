@@ -1,0 +1,23 @@
+# .dockerignore
+.git/
+node_modules/
+frontend/node_modules/
+
+# Ignore project dumps and tracking sheets
+*.xlsx
+*.txt
+*.md
+reapersJournal_architecture.md
+PLAN.md
+PLAN_2.md
+
+# Ignore Python caches and environments
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Ignore environment variables and mounted volume data
+.env
+backups/
+uploads/
